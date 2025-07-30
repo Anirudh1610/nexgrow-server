@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { API_BASE_URL } from '../Auth/APIConfig';
+import { SERVER_API_URL } from '../Auth/APIConfig';
 
 const AdminManagement = () => {
   const navigate = useNavigate();
@@ -52,7 +52,7 @@ const AdminManagement = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/orders/admin/${activeTab}`);
+      const response = await fetch(`${SERVER_API_URL}/admin/${activeTab}`);
       if (response.ok) {
         const data = await response.json();
         switch (activeTab) {
@@ -90,7 +90,7 @@ const AdminManagement = () => {
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this item?')) {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/orders/admin/${activeTab}/${id}`, {
+        const response = await fetch(`${SERVER_API_URL}/admin/${activeTab}/${id}`, {
           method: 'DELETE'
         });
         if (response.ok) {
@@ -106,8 +106,8 @@ const AdminManagement = () => {
     e.preventDefault();
     try {
       const url = modalType === 'create' 
-        ? `${API_BASE_URL}/api/orders/admin/${activeTab}`
-        : `${API_BASE_URL}/api/orders/admin/${activeTab}/${selectedItem.id || selectedItem._id}`;
+        ? `${SERVER_API_URL}/admin/${activeTab}`
+        : `${SERVER_API_URL}/admin/${activeTab}/${selectedItem.id || selectedItem._id}`;
       
       const method = modalType === 'create' ? 'POST' : 'PUT';
       

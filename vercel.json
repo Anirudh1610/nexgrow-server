@@ -16,6 +16,6 @@
     }
   ],
   "env": {
-    "REACT_APP_API_BASE_URL": "@api_base_url"
+    "REACT_APP_API_BASE_URL": "http://143.110.181.10"
   }
 }
