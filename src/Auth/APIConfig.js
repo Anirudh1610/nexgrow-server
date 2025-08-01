@@ -5,8 +5,13 @@ const getAPIBaseURL = () => {
     return process.env.REACT_APP_API_BASE_URL;
   }
   
-  // Use DigitalOcean droplet IP for development/testing (nginx listens on port 80)
-  return "http://143.110.181.10";
+  // For local development, use localhost
+  if (process.env.NODE_ENV === 'development') {
+    return "http://localhost:8000";
+  }
+  
+  // For production fallback, use DigitalOcean droplet
+  return "http://209.38.122.225";
 };
 
 export const config = {
