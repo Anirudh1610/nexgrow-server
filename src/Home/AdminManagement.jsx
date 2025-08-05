@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SERVER_API_URL } from '../Auth/APIConfig';
 
@@ -45,11 +45,7 @@ const AdminManagement = () => {
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, [activeTab]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch(`${SERVER_API_URL}/orders/admin/${activeTab}`);
@@ -65,13 +61,19 @@ const AdminManagement = () => {
           case 'products':
             setProducts(data);
             break;
+          default:
+            console.warn(`Unknown tab: ${activeTab}`);
         }
       }
     } catch (error) {
       console.error(`Error fetching ${activeTab}:`, error);
     }
     setLoading(false);
-  };
+  }, [activeTab]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleCreate = () => {
     setModalType('create');
