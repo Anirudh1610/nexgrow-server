@@ -13,7 +13,7 @@ const OrderForm = ({ onSignOut }) => {
   const [products, setProducts] = useState([]);
   const [loadingSalesmen, setLoadingSalesmen] = useState(false);
   const [loadingDealers, setLoadingDealers] = useState(false);
-  const [loadingProducts, setLoadingProducts] = useState(false);
+  // loadingProducts removed as it's not used in the UI
 
   // Multiple products state
   const [productEntries, setProductEntries] = useState([
@@ -76,15 +76,12 @@ const OrderForm = ({ onSignOut }) => {
   };
 
   const fetchProducts = async () => {
-    setLoadingProducts(true);
     try {
       const response = await axios.get(`${SERVER_API_URL}/orders/products`);
       setProducts(response.data || []);
     } catch (error) {
       console.error('Error fetching products:', error);
       setProducts([]);
-    } finally {
-      setLoadingProducts(false);
     }
   };
 
