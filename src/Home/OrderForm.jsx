@@ -253,7 +253,7 @@ const OrderForm = ({ onSignOut }) => {
       discount_status: discount > 0 ? 'pending' : 'approved'
     };
     try {
-      const response = await axios.post(`${SERVER_API_URL}/orders/make-order`, orderData);
+      await axios.post(`${SERVER_API_URL}/orders/make-order`, orderData);
       alert('Order submitted successfully!');
     } catch (error) {
       alert('Failed to submit the order. Please try again.');
