@@ -111,6 +111,8 @@ const AdminManagement = () => {
       
       const method = modalType === 'create' ? 'POST' : 'PUT';
       
+      console.log('Submitting:', { url, method, formData });
+      
       const response = await fetch(url, {
         method,
         headers: {
@@ -122,6 +124,9 @@ const AdminManagement = () => {
       if (response.ok) {
         setShowModal(false);
         fetchData();
+      } else {
+        const errorText = await response.text();
+        console.error('Server response:', response.status, errorText);
       }
     } catch (error) {
       console.error(`Error ${modalType === 'create' ? 'creating' : 'updating'} ${activeTab.slice(0, -1)}:`, error);
