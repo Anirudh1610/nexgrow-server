@@ -508,7 +508,7 @@ const AdminManagement = () => {
 
       <div style={styles.content}>
         <button style={styles.createButton} onClick={handleCreate}>
-          Add New {activeTab.charAt(0).toUpperCase() + activeTab.slice(1, -1)}
+          Add New {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
         </button>
         
         {loading ? (

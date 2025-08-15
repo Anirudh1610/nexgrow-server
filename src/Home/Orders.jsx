@@ -167,7 +167,7 @@ const Orders = () => {
                       <strong>Product:</strong> {order.product_name || "No product"}
                     </p>
                   )}
-                  <p><strong>Total Price:</strong> ₹{order.total_price}</p>
+                  <p><strong>Total Amount:</strong> ₹{order.total_price}</p>
                 </div>
               ))}
             </div>

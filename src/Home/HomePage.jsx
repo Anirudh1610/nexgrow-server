@@ -1,11 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { signOut } from 'firebase/auth';
+import { signOut, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../Auth/AuthConfig';
 
 const HomePage = () => {
   const navigate = useNavigate();
   const [view, setView] = useState('admin'); // 'admin' or 'salesman'
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const styles = {
     container: {
@@ -116,7 +125,9 @@ const HomePage = () => {
         </button>
       </div>
       <div style={{ ...styles.container, paddingTop: '5rem' }}>
-        <div style={styles.title}>Welcome to Nexfarm</div>
+        <div style={styles.title}>
+          Welcome {user?.displayName || user?.email || 'User'}
+        </div>
         {view === 'admin' ? (
           <>
             <button

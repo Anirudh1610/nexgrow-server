@@ -416,7 +416,7 @@ const OrderForm = ({ onSignOut }) => {
       <div style={{ ...styles.container, paddingTop: '5rem' }}>
         <div style={styles.formContainer}>
           <div style={styles.header}>
-            <h1 style={styles.title}>nexfarm</h1>
+            <h1 style={styles.title}>Order Form</h1>
             <p style={styles.welcomeText}>Welcome, {user.displayName}!</p>
           </div>
           <form onSubmit={handleSubmit} style={styles.form}>

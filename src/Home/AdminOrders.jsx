@@ -87,7 +87,7 @@ const AdminOrders = () => {
                 <div><strong>Salesman:</strong> {order.salesman_name || order.salesman_id}</div>
                 <div><strong>Dealer:</strong> {order.dealer_name || order.dealer_id}</div>
                 <div><strong>State:</strong> {order.state}</div>
-                <div><strong>Total Price:</strong> ₹{order.total_price}</div>
+                <div><strong>Total Amount:</strong> ₹{order.total_price}</div>
                 <div><strong>Discount:</strong> {order.discount || 0}%</div>
                 <div><strong>Discounted Total:</strong> ₹{order.discounted_total || order.total_price}</div>
                 <div><strong>Discount Status:</strong> {order.discount_status || 'approved'}</div>
