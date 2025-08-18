@@ -4,6 +4,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { SERVER_API_URL } from '../Auth/APIConfig';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { formatINR, formatPercent } from './numberFormat';
 
 const OrderForm = ({ onSignOut }) => {
   const navigate = useNavigate();
@@ -17,7 +18,7 @@ const OrderForm = ({ onSignOut }) => {
 
   // Multiple products state
   const [productEntries, setProductEntries] = useState([
-    { product: '', packingSizes: [], productSize: '', quantity: '', priceDetails: null, loadingPackingSizes: false }
+    { product: '', packingSizes: [], productSize: '', quantity: '', priceDetails: null, loadingPackingSizes: false, discount: 0 }
   ]);
 
   const [formData, setFormData] = useState({
@@ -27,13 +28,22 @@ const OrderForm = ({ onSignOut }) => {
   });
 
   // Add discount state
-  const [discount, setDiscount] = useState(0);
+  // const [discount, setDiscount] = useState(0); // REMOVED: moving discount to per-product
+  const [orderSummary, setOrderSummary] = useState(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
       if (currentUser) {
+        setUser(currentUser);
+        // Persist minimal auth reference (uid) for soft refresh continuity
+        try { localStorage.setItem('nexgrow_uid', currentUser.uid); } catch {}
         fetchProducts();
+      } else {
+        // If no firebase user, attempt soft restore or redirect
+        const storedUid = localStorage.getItem('nexgrow_uid');
+        if (!storedUid) {
+          navigate('/');
+        }
       }
     });
     return () => unsubscribe();
@@ -176,6 +186,15 @@ const OrderForm = ({ onSignOut }) => {
   const handleProductEntryChange = (idx, field, value) => {
     setProductEntries(prev => {
       const updated = [...prev];
+      if (field === 'discount') {
+        // Clamp discount 0-30
+        let v = value === '' ? '' : Number(value);
+        if (v !== '' && !isNaN(v)) {
+          v = Math.min(Math.max(v, 0), 30);
+        }
+        updated[idx][field] = v;
+        return updated; // no dependent fetches
+      }
       updated[idx][field] = value;
       // Reset dependent fields
       if (field === 'product') {
@@ -197,7 +216,7 @@ const OrderForm = ({ onSignOut }) => {
   const handleAddProductEntry = () => {
     setProductEntries(prev => [
       ...prev,
-      { product: '', packingSizes: [], productSize: '', quantity: '', priceDetails: null, loadingPackingSizes: false }
+      { product: '', packingSizes: [], productSize: '', quantity: '', priceDetails: null, loadingPackingSizes: false, discount: 0 }
     ]);
   };
 
@@ -206,13 +225,16 @@ const OrderForm = ({ onSignOut }) => {
     setProductEntries(prev => prev.filter((_, i) => i !== idx));
   };
 
-  // Calculate total price and discounted total
-  const totalPrice = productEntries.reduce((sum, entry) => {
-    return sum + (entry.priceDetails?.total_price || 0);
+  // Calculate totals & per-product discounts
+  const totalPrice = productEntries.reduce((sum, entry) => sum + (entry.priceDetails?.total_price || 0), 0);
+  const totalDiscountAmount = productEntries.reduce((sum, entry) => {
+    if (!entry.priceDetails) return sum;
+    const pct = Number(entry.discount) || 0;
+    return sum + (entry.priceDetails.total_price * Math.min(Math.max(pct,0),30) / 100);
   }, 0);
-
-  const discountAmount = Math.min(Math.max(Number(discount), 0), 30) / 100 * totalPrice;
-  const discountedTotal = totalPrice - discountAmount;
+  const discountedTotal = totalPrice - totalDiscountAmount;
+  const aggregateDiscountPct = totalPrice > 0 ? (totalDiscountAmount / totalPrice) * 100 : 0;
+  const anyDiscount = productEntries.some(e => (Number(e.discount) || 0) > 0);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -227,31 +249,62 @@ const OrderForm = ({ onSignOut }) => {
         alert('Please fill all product fields and ensure price is calculated.');
         return;
       }
+      if (entry.discount !== '' && (Number(entry.discount) < 0 || Number(entry.discount) > 30)) {
+        alert('Each product discount must be between 0 and 30%.');
+        return;
+      }
     }
-    // Validate discount
-    if (discount < 0 || discount > 30) {
-      alert('Discount must be between 0 and 30%');
-      return;
-    }
-    // Prepare order data
-    const products = productEntries.map(entry => ({
+    // Prepare order data (store base price per line; overall discount aggregated)
+    const orderProducts = productEntries.map(entry => ({
       product_id: entry.productSize,
       quantity: entry.quantity,
-      price: entry.priceDetails.total_price
+      price: entry.priceDetails.total_price,
+      discount_pct: Number(entry.discount) || 0,
+      discounted_price: (()=>{ const base=entry.priceDetails.total_price; const pct=Number(entry.discount)||0; return base - (base*pct/100); })()
     }));
     const orderData = {
       state,
       salesman_id: salesman,
       dealer_id: dealer,
-      products,
+      products: orderProducts,
       total_price: totalPrice,
-      discount: Number(discount),
+      discount: Number(aggregateDiscountPct.toFixed(2)),
       discounted_total: discountedTotal,
-      discount_status: discount > 0 ? 'pending' : 'approved'
+      discount_status: anyDiscount ? 'pending' : 'approved'
     };
     try {
       await axios.post(`${SERVER_API_URL}/orders/make-order`, orderData);
-      alert('Order submitted successfully!');
+      const summaryProducts = productEntries.map(entry => {
+        const productObj = (products || []).find(p => (p._id || p.id) === entry.product) || {};
+        const packingObj = entry.packingSizes.find(ps => (ps._id || ps.id) === entry.productSize) || {};
+        const base = entry.priceDetails?.total_price || 0;
+        const pct = Number(entry.discount) || 0;
+        const lineDiscountAmt = base * pct / 100;
+        const after = base - lineDiscountAmt;
+        return {
+          name: productObj.name || 'Product',
+            packing: packingObj.packing_size || packingObj.size || packingObj.name || '',
+          quantity: entry.quantity,
+          unitPrice: entry.priceDetails?.unit_price || 0,
+          lineTotal: base,
+          discountPct: pct,
+          discountedLineTotal: after
+        };
+      });
+      setOrderSummary({
+        state,
+        salesman: (salesmen.find(s => (s._id || s.id) === salesman)?.name) || salesman,
+        dealer: (dealers.find(d => (d._id || d.id) === dealer)?.name) || dealer,
+        discount: Number(aggregateDiscountPct.toFixed(2)),
+        totalPrice,
+        discountedTotal,
+        totalDiscountAmount,
+        products: summaryProducts,
+        discountStatus: anyDiscount ? 'pending' : 'approved'
+      });
+      // Reset form basics
+      setProductEntries([{ product: '', packingSizes: [], productSize: '', quantity: '', priceDetails: null, loadingPackingSizes: false, discount: 0 }]);
+      setFormData({ state: '', salesman: '', dealer: '' });
     } catch (error) {
       alert('Failed to submit the order. Please try again.');
     }
@@ -276,22 +329,28 @@ const OrderForm = ({ onSignOut }) => {
     navigate('/home');
   };
 
+  const handleCloseSummary = () => {
+    setOrderSummary(null);
+    navigate('/home');
+  };
+
   const styles = {
     container: {
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
       minHeight: '100vh',
-      backgroundColor: '#000000',
+      background: 'var(--brand-gradient)',
       padding: '20px',
     },
     formContainer: {
-      backgroundColor: '#ffffff',
+      backgroundColor: '#ffffffee',
+      backdropFilter: 'blur(4px)',
       padding: '2rem',
-      borderRadius: '12px',
-      boxShadow: '0 4px 20px rgba(255, 255, 255, 0.1)',
+      borderRadius: '16px',
+      boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
       width: '100%',
-      maxWidth: '500px',
+      maxWidth: '560px',
     },
     header: {
       textAlign: 'center',
@@ -300,13 +359,13 @@ const OrderForm = ({ onSignOut }) => {
     title: {
       fontSize: '2rem',
       fontWeight: 'bold',
-      color: '#000000',
+      color: 'var(--brand-green-dark)',
       margin: 0,
       marginBottom: '0.5rem',
     },
     welcomeText: {
       fontSize: '1.1rem',
-      color: '#666666',
+      color: '#2f4f3a',
       margin: 0,
     },
     form: {
@@ -322,395 +381,225 @@ const OrderForm = ({ onSignOut }) => {
     label: {
       fontSize: '1rem',
       fontWeight: '600',
-      color: '#333333',
+      color: '#1d382c',
     },
     select: {
       padding: '12px',
       fontSize: '1rem',
-      border: '2px solid #e0e0e0',
-      borderRadius: '6px',
+      border: '2px solid #d0e4d6',
+      borderRadius: '8px',
       backgroundColor: '#ffffff',
-      color: '#333333',
+      color: '#1d382c',
       cursor: 'pointer',
-      transition: 'border-color 0.3s ease',
+      transition: 'border-color 0.3s ease, box-shadow 0.3s',
     },
     submitButton: {
       padding: '14px 32px',
       fontSize: '1.1rem',
       fontWeight: '600',
       color: '#ffffff',
-      backgroundColor: '#000000',
+      backgroundColor: 'var(--brand-green)',
       border: 'none',
+      borderRadius: '10px',
+      cursor: 'pointer',
+      transition: 'all 0.3s ease',
+      marginTop: '1rem',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+    },
+    signOutButton: {
+      padding: '10px 18px',
+      fontSize: '0.9rem',
+      fontWeight: '600',
+      color: 'var(--brand-green-dark)',
+      backgroundColor: '#ffffff',
+      border: '2px solid var(--brand-green)',
       borderRadius: '8px',
       cursor: 'pointer',
       transition: 'all 0.3s ease',
       marginTop: '1rem',
     },
-    signOutButton: {
-      padding: '8px 16px',
-      fontSize: '0.9rem',
-      fontWeight: '500',
-      color: '#666666',
-      backgroundColor: 'transparent',
-      border: '1px solid #e0e0e0',
-      borderRadius: '6px',
+    summaryModal: {
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'rgba(0,0,0,0.45)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1000,
+    },
+    summaryContent: {
+      background: '#ffffff',
+      borderRadius: '18px',
+      padding: '2rem',
+      width: '90%',
+      maxWidth: '520px',
+      boxShadow: '0 8px 30px rgba(0,0,0,0.25)',
+      maxHeight: '85vh',
+      overflowY: 'auto',
+    },
+    summaryHeader: {
+      marginTop: 0,
+      color: 'var(--brand-green-dark)',
+    },
+    summaryList: {
+      margin: '8px 0 0 18px',
+      padding: 0,
+    },
+    summaryItem: {
+      marginBottom: 4,
+    },
+    summaryTotal: {
+      marginTop: 16,
+      fontWeight: 600,
+    },
+    closeButton: {
+      marginTop: 24,
+      background: 'var(--brand-green)',
+      color: '#fff',
+      border: 'none',
+      padding: '12px 24px',
+      borderRadius: '10px',
+      fontWeight: 600,
       cursor: 'pointer',
-      transition: 'all 0.3s ease',
-      marginTop: '1rem',
     },
   };
 
   if (!user) {
-    return <div>Loading...</div>;
+    return <div className="app-shell" style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center'}}><div className="surface-card elevated" style={{padding:'2rem 2.25rem',textAlign:'center'}}><p style={{margin:0,fontWeight:600,letterSpacing:'.5px'}}>Authenticating...</p></div></div>;
   }
 
   return (
-    <>
-      <div
-        style={{
-          fontWeight: 'bold',
-          fontSize: '2rem',
-          color: '#fff',
-          backgroundColor: '#000',
-          textAlign: 'center',
-          marginBottom: '1.5rem',
-          marginTop: '0',
-          cursor: 'pointer',
-          letterSpacing: '2px',
-          padding: '1.2rem 0 1.2rem 0',
-          width: '100vw',
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          zIndex: 100,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <span style={{ flex: 1, cursor: 'pointer' }} onClick={handleBack}>
-          NEXGROW
-        </span>
-        <button
-          style={{
-            position: 'absolute',
-            right: 24,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            background: '#fff',
-            color: '#000',
-            border: 'none',
-            borderRadius: '6px',
-            padding: '8px 18px',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-          onClick={async () => {
-            await signOut(auth);
-            navigate('/');
-          }}
-        >
-          Sign Out
-        </button>
-      </div>
-      <div style={{ ...styles.container, paddingTop: '5rem' }}>
-        <div style={styles.formContainer}>
-          <div style={styles.header}>
-            <h1 style={styles.title}>Order Form</h1>
-            <p style={styles.welcomeText}>Welcome, {user.displayName}!</p>
-          </div>
-          <form onSubmit={handleSubmit} style={styles.form}>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Select State</label>
-              <select
-                name="state"
-                value={formData.state}
-                onChange={handleInputChange}
-                style={styles.select}
-                required
-              >
-                <option value="">Choose a state</option>
-                <option value="AP">AP</option>
-                <option value="TG">TG</option>
-                <option value="TN">TN</option>
-                <option value="UP">UP</option>
-                <option value="WB">WB</option>
-              </select>
-            </div>
-
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Select Salesman</label>
-              <select
-                name="salesman"
-                value={formData.salesman}
-                onChange={handleInputChange}
-                style={styles.select}
-                required
-                disabled={!formData.state || loadingSalesmen}
-              >
-                <option value="">
-                  {!formData.state 
-                    ? "Please select a state first" 
-                    : loadingSalesmen 
-                    ? "Loading salesmen..." 
-                    : "Choose a salesman"}
-                </option>
-                {Array.isArray(salesmen) && salesmen.map((salesman) => (
-                  <option key={salesman._id || salesman.id} value={salesman._id || salesman.id}>
-                    {salesman.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Select Dealer</label>
-              <select
-                name="dealer"
-                value={formData.dealer}
-                onChange={handleInputChange}
-                style={styles.select}
-                required
-                disabled={!formData.salesman || loadingDealers}
-              >
-                <option value="">
-                  {!formData.salesman 
-                    ? "Please select a salesman first" 
-                    : loadingDealers 
-                    ? "Loading dealers..." 
-                    : "Choose a dealer"}
-                </option>
-                {Array.isArray(dealers) && dealers.map((dealer) => (
-                  <option key={dealer._id || dealer.id} value={dealer._id || dealer.id}>
-                    {dealer.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Multiple products section */}
-            <div>
-              <label style={styles.label}>Products</label>
-              {productEntries.map((entry, idx) => (
-                <div key={idx} style={{ marginBottom: '1.5rem', borderBottom: '1px solid #eee', paddingBottom: '1rem' }}>
-                  <div style={styles.formGroup}>
-                    <label style={styles.label}>Select Product</label>
-                    <select
-                      name="product"
-                      value={entry.product}
-                      onChange={e => handleProductEntryChange(idx, 'product', e.target.value)}
-                      style={styles.select}
-                      required
-                    >
-                      <option value="">Choose a product</option>
-                      {Array.isArray(products) && products.map((product) => (
-                        <option key={product._id || product.id} value={product._id || product.id}>
-                          {product.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div style={styles.formGroup}>
-                    <label style={styles.label}>Select Product Size</label>
-                    <select
-                      name="productSize"
-                      value={entry.productSize}
-                      onChange={e => handleProductEntryChange(idx, 'productSize', e.target.value)}
-                      style={styles.select}
-                      required
-                      disabled={!entry.product || entry.loadingPackingSizes}
-                    >
-                      <option value="">
-                        {!entry.product
-                          ? "Please select a product first"
-                          : entry.loadingPackingSizes
-                          ? "Loading packing sizes..."
-                          : "Choose product size"}
-                      </option>
-                      {Array.isArray(entry.packingSizes) && entry.packingSizes.map((packing) => (
-                        <option key={packing._id || packing.id} value={packing._id || packing.id}>
-                          {packing.packing_size || packing.size || packing.name}
-                          {packing.bottles_per_case ? ` - ${packing.bottles_per_case} bottles` : ""}
-                          {packing.bottle_volume ? ` x ${packing.bottle_volume}` : ""}
-                          {packing.moq ? ` | MOQ: ${packing.moq}` : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div style={styles.formGroup}>
-                    <label style={styles.label}>Enter Quantity</label>
-                    <input
-                      type="number"
-                      name="quantity"
-                      value={entry.quantity || ''}
-                      onChange={e => handleProductEntryChange(idx, 'quantity', e.target.value)}
-                      style={{
-                        ...styles.select,
-                        padding: '12px',
-                        fontSize: '1rem',
-                      }}
-                      min="1"
-                      placeholder="Enter quantity"
-                      required
-                    />
-                  </div>
-                  {entry.priceDetails && (
-                    <div style={styles.formGroup}>
-                      <p style={{ color: '#333', fontSize: '1rem', fontWeight: '600' }}>
-                        Total Price: ₹{entry.priceDetails.total_price} (Unit Price: ₹{entry.priceDetails.unit_price})
-                      </p>
-                    </div>
-                  )}
-                  {productEntries.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveProductEntry(idx)}
-                      style={{
-                        ...styles.signOutButton,
-                        color: '#c00',
-                        borderColor: '#c00',
-                        marginTop: '0.5rem'
-                      }}
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={handleAddProductEntry}
-                style={{
-                  ...styles.signOutButton,
-                  backgroundColor: '#eee',
-                  color: '#333',
-                  marginBottom: '1rem'
-                }}
-              >
-                Add Another Product
-              </button>
-            </div>
-
-            {/* Discount field */}
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Discount (%)</label>
-              <input
-                type="number"
-                min="0"
-                max="30"
-                step="0.1"
-                value={discount}
-                onChange={e => setDiscount(e.target.value)}
-                style={{
-                  ...styles.select,
-                  width: '100%',
-                }}
-                placeholder="Enter discount (max 30%)"
-              />
-              {discount > 0 && (
-                <span style={{ color: '#c00', fontSize: '0.95rem' }}>
-                  Discount will require admin approval.
-                </span>
-              )}
-            </div>
-
-            {/* Show total price and discounted total */}
-            <div style={styles.formGroup}>
-              <p style={{ color: '#333', fontSize: '1.1rem', fontWeight: 'bold' }}>
-                Grand Total: ₹{totalPrice}
-              </p>
-              {discount > 0 && (
-                <p style={{ color: '#007b00', fontSize: '1.1rem', fontWeight: 'bold' }}>
-                  Discounted Total: ₹{discountedTotal}
-                </p>
-              )}
-            </div>
-
-            <button
-              type="submit"
-              style={styles.submitButton}
-              onMouseOver={(e) => {
-                e.target.style.backgroundColor = '#333333';
-                e.target.style.transform = 'translateY(-2px)';
-              }}
-              onMouseOut={(e) => {
-                e.target.style.backgroundColor = '#000000';
-                e.target.style.transform = 'translateY(0)';
-              }}
-            >
-              Submit Order
-            </button>
-          </form>
-
-          <button
-            onClick={handleSignOut}
-            style={styles.signOutButton}
-            onMouseOver={(e) => {
-              e.target.style.backgroundColor = '#f5f5f5';
-              e.target.style.borderColor = '#cccccc';
-            }}
-            onMouseOut={(e) => {
-              e.target.style.backgroundColor = 'transparent';
-              e.target.style.borderColor = '#e0e0e0';
-            }}
-          >
-            Sign Out
-          </button>
-
-          <button
-            onClick={handleViewOrders}
-            style={{
-              ...styles.signOutButton,
-              marginTop: '1rem',
-              backgroundColor: '#000000',
-              color: '#ffffff',
-            }}
-            onMouseOver={(e) => {
-              e.target.style.backgroundColor = '#333333';
-              e.target.style.color = '#ffffff';
-            }}
-            onMouseOut={(e) => {
-              e.target.style.backgroundColor = '#000000';
-              e.target.style.color = '#ffffff';
-            }}
-          >
-            View Orders
-          </button>
-
-          <button
-            onClick={handleBack}
-            style={{
-              ...styles.signOutButton,
-              marginTop: '1rem',
-              backgroundColor: '#eee',
-              color: '#333',
-            }}
-            onMouseOver={(e) => {
-              e.target.style.backgroundColor = '#ddd';
-            }}
-            onMouseOut={(e) => {
-              e.target.style.backgroundColor = '#eee';
-            }}
-          >
-            Back
-          </button>
-          <button
-            style={{
-              ...styles.signOutButton,
-              marginTop: '1rem',
-              backgroundColor: '#fff',
-              color: '#000',
-              border: '2px solid #000',
-            }}
-            onClick={() => navigate('/home')}
-            onMouseOver={e => { e.target.style.backgroundColor = '#eee'; }}
-            onMouseOut={e => { e.target.style.backgroundColor = '#fff'; }}
-          >
-            Back to Home
-          </button>
+    <div className="app-shell" style={{minHeight:'100vh'}}>
+      <header className="app-header">
+        <div className="app-header__logo" onClick={()=>navigate('/home')}>NEXGROW</div>
+        <div className="app-header__actions">
+          <span style={{fontSize:'.7rem',letterSpacing:'.5px',opacity:.85}}>{user.displayName || user.email}</span>
+          <button className="btn danger" onClick={async()=>{ await signOut(auth); try { localStorage.removeItem('nexgrow_uid'); } catch {}; navigate('/'); }}>Sign Out</button>
         </div>
-      </div>
-    </>
+      </header>
+      <main className="page narrow fade-in">
+        <div className="surface-card elevated" style={{marginBottom:'1.5rem'}}>
+          <h1 className="section-title" style={{fontSize:'1.4rem'}}>Create Order</h1>
+          <p style={{margin:'0 0 1.25rem',fontSize:'.8rem',color:'var(--brand-text-soft)'}}>Apply discounts per product line. Any discount &gt; 0% requires admin approval.</p>
+          <form onSubmit={handleSubmit} className="form-grid" style={{gap:'1.25rem'}}>
+            <div className="form-row">
+              <label>State</label>
+              <select name="state" value={formData.state} onChange={handleInputChange} className="input" required>
+                <option value="">Choose a state</option>
+                <option value="AP">AP</option><option value="TG">TG</option><option value="TN">TN</option><option value="UP">UP</option><option value="WB">WB</option>
+              </select>
+            </div>
+            <div className="form-row">
+              <label>Salesman</label>
+              <select name="salesman" value={formData.salesman} onChange={handleInputChange} className="input" required disabled={!formData.state || loadingSalesmen}>
+                <option value="">{!formData.state ? 'Select a state first' : loadingSalesmen ? 'Loading salesmen...' : 'Choose a salesman'}</option>
+                {Array.isArray(salesmen) && salesmen.map(s => (<option key={s._id || s.id} value={s._id || s.id}>{s.name}</option>))}
+              </select>
+            </div>
+            <div className="form-row">
+              <label>Dealer</label>
+              <select name="dealer" value={formData.dealer} onChange={handleInputChange} className="input" required disabled={!formData.salesman || loadingDealers}>
+                <option value="">{!formData.salesman ? 'Select a salesman first' : loadingDealers ? 'Loading dealers...' : 'Choose a dealer'}</option>
+                {Array.isArray(dealers) && dealers.map(d => (<option key={d._id || d.id} value={d._id || d.id}>{d.name}</option>))}
+              </select>
+            </div>
+            {/* Removed global discount field */}
+            <div className="form-row" style={{gridColumn:'1 / -1'}}>
+              <label style={{marginBottom:'.25rem'}}>Products</label>
+              <div className="stack-md" style={{marginTop:'.25rem'}}>
+                {productEntries.map((entry, idx)=> {
+                  const base = entry.priceDetails?.total_price || 0;
+                  const pct = Number(entry.discount) || 0;
+                  const lineDiscountAmt = base * pct / 100;
+                  const after = base - lineDiscountAmt;
+                  return (
+                  <div key={idx} className="surface-card" style={{padding:'1rem 1.1rem 1.15rem',boxShadow:'none',border:'1px solid var(--brand-border)'}}>
+                    <div className="form-grid" style={{gap:'.9rem'}}>
+                      <div className="form-row">
+                        <label>Product</label>
+                        <select value={entry.product} onChange={e=>handleProductEntryChange(idx,'product',e.target.value)} className="input" required>
+                          <option value="">Choose product</option>
+                          {products.map(p=>(<option key={p._id || p.id} value={p._id || p.id}>{p.name}</option>))}
+                        </select>
+                      </div>
+                      <div className="form-row">
+                        <label>Size</label>
+                        <select value={entry.productSize} onChange={e=>handleProductEntryChange(idx,'productSize',e.target.value)} className="input" required disabled={!entry.product || entry.loadingPackingSizes}>
+                          <option value="">{!entry.product ? 'Select product first' : entry.loadingPackingSizes ? 'Loading sizes...' : 'Choose size'}</option>
+                          {entry.packingSizes.map(p=> (<option key={p._id || p.id} value={p._id || p.id}>{p.packing_size || p.size || p.name}{p.bottles_per_case?` - ${p.bottles_per_case} bottles`:''}{p.bottle_volume?` x ${p.bottle_volume}`:''}{p.moq?` | MOQ: ${p.moq}`:''}</option>))}
+                        </select>
+                      </div>
+                      <div className="form-row">
+                        <label>Quantity</label>
+                        <input type="number" min="1" value={entry.quantity || ''} onChange={e=>handleProductEntryChange(idx,'quantity',e.target.value)} className="input" placeholder="Qty" required />
+                      </div>
+                      <div className="form-row">
+                        <label>Discount %</label>
+                        <input type="number" min="0" max="30" step="0.1" value={entry.discount === '' ? '' : entry.discount} onChange={e=>handleProductEntryChange(idx,'discount',e.target.value)} className="input" placeholder="0 - 30%" />
+                      </div>
+                    </div>
+                    {entry.priceDetails && (
+                      <div style={{marginTop:'.6rem',fontSize:'.65rem',fontWeight:600,color:'var(--brand-text)'}}>Line: ₹{formatINR(base)}{pct>0 && <> - {pct}% (₹{formatINR(lineDiscountAmt)}) → <span style={{color:'#0f732f'}}>₹{formatINR(after)}</span></>}</div>
+                    )}
+                    <div style={{marginTop:'.75rem',display:'flex',gap:'.5rem'}}>
+                      {productEntries.length > 1 && (
+                        <button type="button" className="btn danger" onClick={()=>handleRemoveProductEntry(idx)} style={{fontSize:'.65rem'}}>Remove</button>
+                      )}
+                      {idx === productEntries.length -1 && (
+                        <button type="button" className="btn secondary" onClick={handleAddProductEntry} style={{fontSize:'.65rem'}}>Add Another</button>
+                      )}
+                    </div>
+                  </div>
+                )})}
+              </div>
+            </div>
+            <div className="surface-card" style={{gridColumn:'1 / -1',display:'flex',flexWrap:'wrap',gap:'1rem',alignItems:'center',padding:'1rem 1.1rem'}}>
+              <div style={{fontSize:'.75rem',fontWeight:600,color:'var(--brand-text)'}}>Total Before Discount: ₹{formatINR(totalPrice)}</div>
+              {anyDiscount && <div style={{fontSize:'.75rem',fontWeight:600,color:'#b34700'}}>Discount Amt: ₹{formatINR(totalDiscountAmount)}</div>}
+              {anyDiscount && <div style={{fontSize:'.75rem',fontWeight:600,color:'#0f732f'}}>After Discount: ₹{formatINR(discountedTotal)}</div>}
+            </div>
+            <div style={{gridColumn:'1 / -1',display:'flex',gap:'.75rem',marginTop:'.5rem'}}>
+              <button type="submit" className="btn" style={{flex:'0 0 auto'}}>Submit Order</button>
+              <button type="button" className="btn outline" onClick={()=>navigate('/orders')}>View Orders</button>
+              <button type="button" className="btn secondary" onClick={()=>navigate('/home')}>Back</button>
+            </div>
+          </form>
+        </div>
+        {orderSummary && (
+          <div className="modal-backdrop" onClick={handleCloseSummary}>
+            <div className="modal-panel" onClick={e=>e.stopPropagation()}>
+              <h2 className="section-title" style={{fontSize:'1.25rem'}}>Order Summary</h2>
+              <div style={{display:'grid',rowGap:6,fontSize:'.75rem',marginBottom:'1rem'}}>
+                <span><strong>State:</strong> {orderSummary.state}</span>
+                <span><strong>Salesman:</strong> {orderSummary.salesman}</span>
+                <span><strong>Dealer:</strong> {orderSummary.dealer}</span>
+                <span><strong>Status:</strong> {orderSummary.discountStatus}</span>
+                <span><strong>Aggregate Discount %:</strong> {orderSummary.discount}</span>
+              </div>
+              <div style={{marginBottom:'1rem'}}>
+                <strong style={{fontSize:'.7rem',letterSpacing:'.5px'}}>Products</strong>
+                <ul style={{margin:'4px 0 0 18px',padding:0,fontSize:'.7rem'}}>
+                  {orderSummary.products.map((p,i)=>(
+                    <li key={i} style={{margin:'2px 0'}}>{p.name}{p.packing?` (${p.packing})`:''} - Qty: {p.quantity} @ ₹{formatINR(p.unitPrice)} = ₹{formatINR(p.lineTotal)}{p.discountPct>0 && <> - {p.discountPct}% → <strong>₹{formatINR(p.discountedLineTotal)}</strong></>}</li>
+                  ))}
+                </ul>
+              </div>
+              <div style={{fontSize:'.75rem',fontWeight:600,display:'grid',rowGap:4}}>
+                <span>Total Before Discount: ₹{formatINR(orderSummary.totalPrice)}</span>
+                {orderSummary.totalDiscountAmount>0 && <span>Total Discount: -₹{formatINR(orderSummary.totalDiscountAmount)}</span>}
+                <span>Grand Total: ₹{formatINR(orderSummary.discountedTotal)}</span>
+              </div>
+              <div className="modal-actions">
+                <button className="btn" onClick={handleCloseSummary}>Close</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
   );
 };
 

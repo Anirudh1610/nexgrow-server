@@ -4,6 +4,7 @@ import { SERVER_API_URL } from '../Auth/APIConfig';
 import { signOut } from 'firebase/auth';
 import { auth } from '../Auth/AuthConfig';
 import { useNavigate } from 'react-router-dom';
+import { formatINR, formatPercent } from './numberFormat';
 
 const AdminOrders = () => {
   const [orders, setOrders] = useState([]);
@@ -25,107 +26,135 @@ const AdminOrders = () => {
   }, []);
 
   return (
-    <>
-      <div
-        style={{
-          fontWeight: 'bold',
-          fontSize: '2rem',
-          color: '#fff',
-          backgroundColor: '#000',
-          textAlign: 'center',
-          marginBottom: '1.5rem',
-          marginTop: '0',
-          cursor: 'pointer',
-          letterSpacing: '2px',
-          padding: '1.2rem 0 1.2rem 0',
-          width: '100vw',
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          zIndex: 100,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <span style={{ flex: 1, cursor: 'pointer' }} onClick={() => navigate('/home')}>
+    <div className="app-shell" style={{ minHeight: '100vh' }}>
+      <header className="app-header">
+        <div className="app-header__logo" onClick={() => navigate('/home')}>
           NEXGROW
-        </span>
-        <button
-          style={{
-            position: 'absolute',
-            right: 24,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            background: '#fff',
-            color: '#000',
-            border: 'none',
-            borderRadius: '6px',
-            padding: '8px 18px',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-          onClick={async () => {
-            await signOut(auth);
-            navigate('/');
-          }}
-        >
-          Sign Out
-        </button>
-      </div>
-      <div style={{ padding: '6rem 2rem 2rem 2rem' }}>
-        <h2>All Orders</h2>
-        {loading ? (
-          <p>Loading...</p>
-        ) : orders.length === 0 ? (
-          <p>No orders found.</p>
-        ) : (
-          <ul>
-            {orders.map(order => (
-              <li key={order._id || order.id} style={{ marginBottom: 24, border: '1px solid #ccc', padding: 16 }}>
-                <div><strong>Order ID:</strong> {order._id || order.id}</div>
-                <div><strong>Salesman:</strong> {order.salesman_name || order.salesman_id}</div>
-                <div><strong>Dealer:</strong> {order.dealer_name || order.dealer_id}</div>
-                <div><strong>State:</strong> {order.state}</div>
-                <div><strong>Total Amount:</strong> ₹{order.total_price}</div>
-                <div><strong>Discount:</strong> {order.discount || 0}%</div>
-                <div><strong>Discounted Total:</strong> ₹{order.discounted_total || order.total_price}</div>
-                <div><strong>Discount Status:</strong> {order.discount_status || 'approved'}</div>
-                <div>
-                  <strong>Products:</strong>
-                  <ul>
-                    {order.products && order.products.map((p, i) => (
-                      <li key={i}>
-                        {p.product_name || p.product_id} - Qty: {p.quantity} - ₹{p.price}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-        <button
-          style={{
-            marginTop: '2rem',
-            padding: '12px 32px',
-            fontSize: '1.1rem',
-            fontWeight: '600',
-            color: '#fff',
-            backgroundColor: '#000',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            textAlign: 'center',
-          }}
-          onClick={() => navigate('/home')}
-          onMouseOver={e => { e.target.style.backgroundColor = '#333'; }}
-          onMouseOut={e => { e.target.style.backgroundColor = '#000'; }}
-        >
-          Back
-        </button>
-      </div>
-    </>
+        </div>
+        <div className="app-header__actions">
+          <button
+            className="btn danger"
+            onClick={async () => {
+              await signOut(auth);
+              navigate('/');
+            }}
+          >
+            Sign Out
+          </button>
+        </div>
+      </header>
+      <main className="page fade-in">
+        <h1 className="section-title" style={{ fontSize: '1.5rem' }}>
+          All Orders
+        </h1>
+        <div className="surface-card elevated">
+          {loading ? (
+            <p>Loading...</p>
+          ) : orders.length === 0 ? (
+            <p>No orders found.</p>
+          ) : (
+            <ul className="order-list">
+              {orders.map((order) => {
+                const total = order.total_price || 0;
+                const discountPct = order.discount || 0;
+                const discounted =
+                  order.discounted_total != null
+                    ? order.discounted_total
+                    : total - (total * discountPct) / 100;
+                const discountAmt = total - discounted;
+                const status = order.discount_status || 'n/a';
+                const badgeClass =
+                  status === 'approved'
+                    ? 'badge success'
+                    : status === 'pending'
+                    ? 'badge warning'
+                    : status === 'rejected'
+                    ? 'badge danger'
+                    : 'badge';
+                return (
+                  <li key={order._id || order.id} className="order-card">
+                    <header>
+                      <strong
+                        style={{
+                          fontSize: '.85rem',
+                          letterSpacing: '.5px',
+                        }}
+                      >
+                        {order.order_code ? order.order_code : `Order: ${order._id || order.id}`}
+                      </strong>
+                      <span className={badgeClass}>
+                        {status.toUpperCase()}
+                      </span>
+                    </header>
+                    <div
+                      style={{
+                        fontSize: '.75rem',
+                        color: 'var(--brand-text-soft)',
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: '.85rem',
+                      }}
+                    >
+                      <span>
+                        <strong style={{ color: 'var(--brand-text)' }}>
+                          Salesman:
+                        </strong>{' '}
+                        {order.salesman_name || order.salesman_id}
+                      </span>
+                      <span>
+                        <strong style={{ color: 'var(--brand-text)' }}>
+                          Dealer:
+                        </strong>{' '}
+                        {order.dealer_name || order.dealer_id}
+                      </span>
+                      <span>
+                        <strong style={{ color: 'var(--brand-text)' }}>
+                          State:
+                        </strong>{' '}
+                        {order.state}
+                      </span>
+                    </div>
+                    {order.products && order.products.length > 0 && (
+                      <ul
+                        style={{
+                          margin: '.5rem 0 0 1rem',
+                          padding: 0,
+                          fontSize: '.7rem',
+                          listStyle: 'disc',
+                        }}
+                      >
+                        {order.products.map((p, i) => (
+                          <li key={i} style={{ margin: '2px 0' }}>
+                            {p.product_name || p.product_id} - Qty: {formatINR(p.quantity,{decimals:0})} {p.price ? `- ₹${formatINR(p.price)}` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <div
+                      className="order-metrics"
+                      style={{ marginTop: '.75rem' }}
+                    >
+                      <span>Total: ₹{formatINR(total)}</span>
+                      <span>Discount %: {formatPercent(discountPct,{decimals:2})}</span>
+                      <span>Discount Amt: ₹{formatINR(discountAmt)}</span>
+                      <span>After Discount: ₹{formatINR(discounted)}</span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <div style={{ marginTop: '1.5rem' }}>
+            <button
+              className="btn secondary"
+              onClick={() => navigate('/home')}
+            >
+              Back
+            </button>
+          </div>
+        </div>
+      </main>
+    </div>
   );
 };
 

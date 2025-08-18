@@ -28,6 +28,11 @@ function App() {
     setUser(null);
   };
 
+  const ProtectedRoute = ({ user, children }) => {
+    if (!user) return <Navigate to="/login" replace />;
+    return children;
+  };
+
   if (loading) {
     return (
       <div style={{ 
@@ -35,7 +40,7 @@ function App() {
         justifyContent: 'center', 
         alignItems: 'center', 
         minHeight: '100vh', 
-        backgroundColor: '#000000',
+        background: 'var(--brand-gradient)',
         color: '#ffffff',
         fontSize: '1.2rem'
       }}>
@@ -47,14 +52,15 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<Navigate to="/home" />} />
-        <Route path="/home" element={<HomePage />} />
-        <Route path="/order-form" element={user ? <OrderForm onSignOut={handleSignOut} /> : <Landing />} />
-        <Route path="/orders" element={<Orders />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/admin/orders" element={<AdminOrders />} />
-        <Route path="/admin/discount-approvals" element={<AdminDiscountApprovals />} />
-        <Route path="/admin/management" element={<AdminManagement />} />
+        <Route path="/login" element={user ? <Navigate to="/home" replace /> : <Landing />} />
+        <Route path="/" element={user ? <Navigate to="/home" replace /> : <Navigate to="/login" replace />} />
+        <Route path="/home" element={<ProtectedRoute user={user}><HomePage /></ProtectedRoute>} />
+        <Route path="/order-form" element={<ProtectedRoute user={user}><OrderForm onSignOut={handleSignOut} /></ProtectedRoute>} />
+        <Route path="/orders" element={<ProtectedRoute user={user}><Orders /></ProtectedRoute>} />
+        <Route path="/dashboard" element={<ProtectedRoute user={user}><Dashboard /></ProtectedRoute>} />
+        <Route path="/admin/orders" element={<ProtectedRoute user={user}><AdminOrders /></ProtectedRoute>} />
+        <Route path="/admin/discount-approvals" element={<ProtectedRoute user={user}><AdminDiscountApprovals /></ProtectedRoute>} />
+        <Route path="/admin/management" element={<ProtectedRoute user={user}><AdminManagement /></ProtectedRoute>} />
       </Routes>
     </Router>
   );

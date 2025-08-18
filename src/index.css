@@ -1,10 +1,54 @@
+@import './components/UITheme.css';
+
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: var(--brand-bg);
+  min-height: 100vh;
+  color: var(--brand-text);
+}
+
+/* Apply gradient to html as well to ensure full coverage */
+html { background: var(--brand-bg); }
+
+/* Ensure the root div also takes full height */
+#root { min-height:100vh; }
+
+/* Theme variables */
+:root {
+  --brand-green: #128d3b;
+  --brand-green-dark: #0f732f;
+  --brand-gradient: linear-gradient(135deg, #128d3b 0%, #ffffff 100%);
+}
+
+/* Header bar utility */
+.header-bar {
+  background: var(--brand-gradient);
+  color: #ffffff;
+}
+
+/* Primary button utility */
+.btn-primary {
+  background: var(--brand-green);
+  color: #ffffff;
+  border: none;
+}
+.btn-primary:hover {
+  background: var(--brand-green-dark);
+}
+
+/* Outline button utility */
+.btn-outline {
+  background: #ffffffcc;
+  color: #0d4f23;
+  border: 2px solid var(--brand-green);
+}
+.btn-outline:hover {
+  background: #ffffff;
 }
 
 code {

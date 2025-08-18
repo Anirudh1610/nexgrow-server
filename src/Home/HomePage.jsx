@@ -16,167 +16,97 @@ const HomePage = () => {
     return () => unsubscribe();
   }, []);
 
-  const styles = {
-    container: {
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center',
-      minHeight: '100vh',
-      backgroundColor: '#000',
-    },
-    title: {
-      fontSize: '2rem',
-      fontWeight: 'bold',
-      color: '#fff',
-      marginBottom: '2rem',
-    },
-    button: {
-      padding: '16px 40px',
-      fontSize: '1.2rem',
-      fontWeight: '600',
-      color: '#fff',
-      backgroundColor: '#000',
-      border: '2px solid #fff',
-      borderRadius: '10px',
-      cursor: 'pointer',
-      margin: '1rem',
-      transition: 'all 0.3s',
-    },
-  };
-
   return (
-    <>
-      <div
-        style={{
-          fontWeight: 'bold',
-          fontSize: '2rem',
-          color: '#fff',
-          backgroundColor: '#000',
-          textAlign: 'center',
-          marginBottom: '2rem',
-          marginTop: '0',
-          cursor: 'pointer',
-          letterSpacing: '2px',
-          padding: '1.2rem 0 1.2rem 0',
-          width: '100vw',
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          zIndex: 100,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <span style={{ flex: 1, cursor: 'pointer' }} onClick={() => navigate('/home')}>
+    <div className="app-shell fade-in" style={{ minHeight: '100vh' }}>
+      <header className="app-header">
+        <div className="app-header__logo" onClick={() => navigate('/home')}>
           NEXGROW
-        </span>
-        <div style={{ position: 'absolute', right: 140, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: '8px' }}>
+        </div>
+        <div className="nav-tabs">
           <button
-            style={{
-              background: view === 'admin' ? '#fff' : '#eee',
-              color: '#000',
-              border: 'none',
-              borderRadius: '6px',
-              padding: '8px 14px',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
+            className={view === 'admin' ? 'active' : ''}
             onClick={() => setView('admin')}
           >
-            Admin View
+            ADMIN VIEW
           </button>
           <button
-            style={{
-              background: view === 'salesman' ? '#fff' : '#eee',
-              color: '#000',
-              border: 'none',
-              borderRadius: '6px',
-              padding: '8px 14px',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
+            className={view === 'salesman' ? 'active' : ''}
             onClick={() => setView('salesman')}
           >
-            Salesman View
+            SALESMAN VIEW
           </button>
         </div>
-        <button
+        <div className="app-header__actions">
+          {user && (
+            <span
+              style={{
+                fontSize: '.7rem',
+                letterSpacing: '.5px',
+                opacity: .85,
+              }}
+            >
+              {user.displayName || user.email}
+            </span>
+          )}
+          <button
+            className="btn danger"
+            onClick={async () => {
+              await signOut(auth);
+              navigate('/');
+            }}
+          >
+            Sign Out
+          </button>
+        </div>
+      </header>
+      <main className="page">
+        <h1
+          className="section-title"
           style={{
-            position: 'absolute',
-            right: 24,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            background: '#fff',
-            color: '#000',
-            border: 'none',
-            borderRadius: '6px',
-            padding: '8px 18px',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-          onClick={async () => {
-            await signOut(auth);
-            navigate('/');
+            fontSize: '1.65rem',
+            background: 'linear-gradient(90deg,#128d3b,#2fbf62)',
+            WebkitBackgroundClip: 'text',
+            color: 'transparent',
           }}
         >
-          Sign Out
-        </button>
-      </div>
-      <div style={{ ...styles.container, paddingTop: '5rem' }}>
-        <div style={styles.title}>
           Welcome {user?.displayName || user?.email || 'User'}
-        </div>
+        </h1>
         {view === 'admin' ? (
-          <>
-            <button
-              style={styles.button}
+          <div className="tiles">
+            <div
+              className="tile"
               onClick={() => navigate('/admin/discount-approvals')}
-              onMouseOver={e => { e.target.style.backgroundColor = '#333'; }}
-              onMouseOut={e => { e.target.style.backgroundColor = '#000'; }}
             >
-              Approve Discounts
-            </button>
-            <button
-              style={styles.button}
-              onClick={() => navigate('/admin/orders')}
-              onMouseOver={e => { e.target.style.backgroundColor = '#333'; }}
-              onMouseOut={e => { e.target.style.backgroundColor = '#000'; }}
-            >
-              View All Orders
-            </button>
-            <button
-              style={styles.button}
-              onClick={() => navigate('/admin/management')}
-              onMouseOver={e => { e.target.style.backgroundColor = '#333'; }}
-              onMouseOut={e => { e.target.style.backgroundColor = '#000'; }}
-            >
-              Manage Data
-            </button>
-          </>
+              <h3>Discount Approvals</h3>
+              <p>Review, approve or reject requested order discounts.</p>
+            </div>
+            <div className="tile" onClick={() => navigate('/admin/orders')}>
+              <h3>All Orders</h3>
+              <p>Monitor every order, its status and discount performance.</p>
+            </div>
+            <div className="tile" onClick={() => navigate('/admin/management')}>
+              <h3>Data Management</h3>
+              <p>Maintain salesmen, dealers and product catalog entries.</p>
+            </div>
+            <div className="tile" onClick={() => navigate('/dashboard')}>
+              <h3>Dashboard</h3>
+              <p>High level metrics & quick sales insights (beta).</p>
+            </div>
+          </div>
         ) : (
-          <>
-            <button
-              style={styles.button}
-              onClick={() => navigate('/order-form')}
-              onMouseOver={e => { e.target.style.backgroundColor = '#333'; }}
-              onMouseOut={e => { e.target.style.backgroundColor = '#000'; }}
-            >
-              Order Form
-            </button>
-            <button
-              style={styles.button}
-              onClick={() => navigate('/orders')}
-              onMouseOver={e => { e.target.style.backgroundColor = '#333'; }}
-              onMouseOut={e => { e.target.style.backgroundColor = '#000'; }}
-            >
-              View Orders
-            </button>
-          </>
+          <div className="tiles">
+            <div className="tile" onClick={() => navigate('/order-form')}>
+              <h3>Create Order</h3>
+              <p>Build a multi-product order with instant pricing.</p>
+            </div>
+            <div className="tile" onClick={() => navigate('/orders')}>
+              <h3>My Orders</h3>
+              <p>Track submitted orders and discount statuses.</p>
+            </div>
+          </div>
         )}
-      </div>
-    </>
+      </main>
+    </div>
   );
 };
 

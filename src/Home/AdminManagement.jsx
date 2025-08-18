@@ -85,7 +85,9 @@ const AdminManagement = () => {
   const handleEdit = (item) => {
     setModalType('edit');
     setSelectedItem(item);
-    setFormData({ ...item });
+    // Exclude immutable identifiers from editable form state
+    const { _id, id, __v, ...rest } = item;
+    setFormData(rest);
     setShowModal(true);
   };
 
@@ -110,17 +112,23 @@ const AdminManagement = () => {
       const url = modalType === 'create' 
         ? `${SERVER_API_URL}/orders/admin/${activeTab}`
         : `${SERVER_API_URL}/orders/admin/${activeTab}/${selectedItem.id || selectedItem._id}`;
-      
       const method = modalType === 'create' ? 'POST' : 'PUT';
-      
-      console.log('Submitting:', { url, method, formData });
-      
+
+      // Build payload without immutable id fields
+      const { _id, id, __v, ...payload } = formData;
+
+      // Optional: coerce numeric fields
+      Object.keys(payload).forEach(k => {
+        if (typeof formTemplates[activeTab][k] === 'number' && payload[k] !== '' && payload[k] !== null) {
+          const num = Number(payload[k]);
+            if (!Number.isNaN(num)) payload[k] = num;
+        }
+      });
+
       const response = await fetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
 
       if (response.ok) {
@@ -294,185 +302,31 @@ const AdminManagement = () => {
   };
 
   const styles = {
-    container: {
-      display: 'flex',
-      flexDirection: 'column',
-      minHeight: '100vh',
-      backgroundColor: '#000',
-      color: '#fff',
-      padding: '20px',
-    },
-    header: {
-      textAlign: 'center',
-      marginBottom: '2rem',
-    },
-    title: {
-      fontSize: '2rem',
-      fontWeight: 'bold',
-      marginBottom: '1rem',
-    },
-    tabs: {
-      display: 'flex',
-      justifyContent: 'center',
-      marginBottom: '2rem',
-      gap: '1rem',
-    },
-    tab: {
-      padding: '12px 24px',
-      backgroundColor: 'transparent',
-      color: '#fff',
-      border: '2px solid #fff',
-      borderRadius: '8px',
-      cursor: 'pointer',
-      fontSize: '1rem',
-      fontWeight: '600',
-      transition: 'all 0.3s',
-    },
-    activeTab: {
-      backgroundColor: '#fff',
-      color: '#000',
-    },
-    content: {
-      backgroundColor: '#fff',
-      color: '#000',
-      borderRadius: '12px',
-      padding: '2rem',
-      maxWidth: '1200px',
-      margin: '0 auto',
-      width: '100%',
-    },
-    createButton: {
-      backgroundColor: '#000',
-      color: '#fff',
-      border: 'none',
-      padding: '12px 24px',
-      borderRadius: '8px',
-      fontSize: '1rem',
-      fontWeight: '600',
-      cursor: 'pointer',
-      marginBottom: '1rem',
-    },
-    tableContainer: {
-      overflowX: 'auto',
-    },
-    table: {
-      width: '100%',
-      borderCollapse: 'collapse',
-      marginTop: '1rem',
-    },
-    th: {
-      backgroundColor: '#f5f5f5',
-      padding: '12px',
-      textAlign: 'left',
-      borderBottom: '2px solid #ddd',
-      fontWeight: 'bold',
-    },
-    tr: {
-      borderBottom: '1px solid #ddd',
-    },
-    td: {
-      padding: '12px',
-      verticalAlign: 'middle',
-    },
-    editButton: {
-      backgroundColor: '#007bff',
-      color: '#fff',
-      border: 'none',
-      padding: '6px 12px',
-      borderRadius: '4px',
-      cursor: 'pointer',
-      marginRight: '8px',
-      fontSize: '0.9rem',
-    },
-    deleteButton: {
-      backgroundColor: '#dc3545',
-      color: '#fff',
-      border: 'none',
-      padding: '6px 12px',
-      borderRadius: '4px',
-      cursor: 'pointer',
-      fontSize: '0.9rem',
-    },
-    modal: {
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 1000,
-    },
-    modalContent: {
-      backgroundColor: '#fff',
-      padding: '2rem',
-      borderRadius: '12px',
-      maxWidth: '500px',
-      width: '90%',
-      maxHeight: '80vh',
-      overflowY: 'auto',
-    },
-    form: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '1rem',
-    },
-    formGroup: {
-      display: 'flex',
-      flexDirection: 'column',
-    },
-    label: {
-      marginBottom: '0.5rem',
-      fontWeight: '600',
-      color: '#000',
-    },
-    input: {
-      padding: '10px',
-      border: '1px solid #ddd',
-      borderRadius: '4px',
-      fontSize: '1rem',
-    },
-    formActions: {
-      display: 'flex',
-      gap: '1rem',
-      justifyContent: 'flex-end',
-      marginTop: '1rem',
-    },
-    submitButton: {
-      backgroundColor: '#000',
-      color: '#fff',
-      border: 'none',
-      padding: '12px 24px',
-      borderRadius: '8px',
-      cursor: 'pointer',
-      fontSize: '1rem',
-      fontWeight: '600',
-    },
-    cancelButton: {
-      backgroundColor: '#6c757d',
-      color: '#fff',
-      border: 'none',
-      padding: '12px 24px',
-      borderRadius: '8px',
-      cursor: 'pointer',
-      fontSize: '1rem',
-      fontWeight: '600',
-    },
-    backButton: {
-      position: 'absolute',
-      top: '20px',
-      left: '20px',
-      backgroundColor: '#fff',
-      color: '#000',
-      border: '2px solid #fff',
-      padding: '10px 20px',
-      borderRadius: '8px',
-      cursor: 'pointer',
-      fontSize: '1rem',
-      fontWeight: '600',
-    },
+    container: { display:'flex', flexDirection:'column', minHeight:'100vh', background:'var(--brand-bg)', color:'var(--brand-text)' },
+    header: { textAlign:'center', marginBottom:'1.25rem' },
+    title: { fontSize:'1.55rem', fontWeight:700, letterSpacing:'.5px', margin:0, background:'linear-gradient(90deg,#128d3b,#2fbf62)', WebkitBackgroundClip:'text', color:'transparent' },
+    tabs: { display:'flex', justifyContent:'center', gap:'.75rem', marginBottom:'1.25rem', flexWrap:'wrap' },
+    tab: { padding:'.65rem 1.1rem', background:'#fff', color:'var(--brand-green-dark)', border:'1px solid var(--brand-green)', borderRadius:'var(--radius-md)', cursor:'pointer', fontSize:'.75rem', fontWeight:600, letterSpacing:'.65px', transition:'var(--transition-base)' },
+    activeTab: { background:'var(--brand-green)', color:'#fff', boxShadow:'var(--brand-shadow-sm)' },
+    content: { background:'var(--brand-surface)', border:'1px solid var(--brand-border)', borderRadius:'var(--radius-lg)', padding:'1.75rem 1.5rem 2rem', maxWidth:'1200px', margin:'0 auto', width:'100%', boxShadow:'var(--brand-shadow-sm)' },
+    createButton: { background:'var(--brand-green)', color:'#fff', border:'1px solid var(--brand-green)', padding:'.7rem 1.2rem', borderRadius:'var(--radius-md)', fontSize:'.8rem', fontWeight:600, letterSpacing:'.5px', cursor:'pointer', boxShadow:'var(--brand-shadow-sm)', transition:'var(--transition-base)' },
+    tableContainer: { overflowX:'auto', marginTop:'.5rem' },
+    table: { width:'100%', borderCollapse:'collapse', fontSize:'.75rem' },
+    th: { background:'var(--brand-surface-alt)', padding:'.6rem .75rem', textAlign:'left', borderBottom:'1px solid var(--brand-border)', fontWeight:600, fontSize:'.6rem', letterSpacing:'.8px', textTransform:'uppercase', color:'var(--brand-text-soft)' },
+    tr: { borderBottom:'1px solid var(--brand-border)' },
+    td: { padding:'.6rem .75rem', verticalAlign:'middle' },
+    editButton: { background:'var(--brand-green)', color:'#fff', border:'none', padding:'.45rem .7rem', borderRadius:'var(--radius-sm)', cursor:'pointer', fontSize:'.65rem', fontWeight:600, marginRight:'.4rem' },
+    deleteButton: { background:'#d83545', color:'#fff', border:'none', padding:'.45rem .7rem', borderRadius:'var(--radius-sm)', cursor:'pointer', fontSize:'.65rem', fontWeight:600 },
+    modal: { position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 },
+    modalContent: { background:'#fff', padding:'1.75rem 1.5rem 2rem', borderRadius:'var(--radius-xl)', maxWidth:'520px', width:'95%', maxHeight:'85vh', overflow:'auto', boxShadow:'var(--brand-shadow-lg)' },
+    form: { display:'flex', flexDirection:'column', gap:'.85rem', marginTop:'.75rem' },
+    formGroup: { display:'flex', flexDirection:'column', gap:'.35rem' },
+    label: { fontSize:'.65rem', fontWeight:600, letterSpacing:'.7px', textTransform:'uppercase', color:'var(--brand-text-soft)' },
+    input: { padding:'.65rem .75rem', border:'1px solid var(--brand-border)', borderRadius:'var(--radius-md)', fontSize:'.75rem', background:'#fff', color:'var(--brand-text)' },
+    formActions: { display:'flex', gap:'.65rem', justifyContent:'flex-end', marginTop:'.5rem' },
+    submitButton: { background:'var(--brand-green)', color:'#fff', border:'1px solid var(--brand-green)', padding:'.6rem 1.15rem', borderRadius:'var(--radius-md)', cursor:'pointer', fontSize:'.7rem', fontWeight:600, letterSpacing:'.5px' },
+    cancelButton: { background:'#6c757d', color:'#fff', border:'1px solid #6c757d', padding:'.6rem 1.15rem', borderRadius:'var(--radius-md)', cursor:'pointer', fontSize:'.7rem', fontWeight:600 },
+    backButton: { position:'absolute', top:'18px', left:'18px', background:'var(--brand-green)', color:'#fff', border:'1px solid var(--brand-green)', padding:'.55rem .95rem', borderRadius:'var(--radius-md)', cursor:'pointer', fontSize:'.65rem', fontWeight:600, letterSpacing:'.5px', boxShadow:'var(--brand-shadow-sm)' },
   };
 
   return (

@@ -4,204 +4,109 @@ import { SERVER_API_URL } from '../Auth/APIConfig';
 import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../Auth/AuthConfig';
+import { formatINR, formatPercent } from './numberFormat';
 
 const Dashboard = () => {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
+	const [orders, setOrders] = useState([]);
+	const [loading, setLoading] = useState(true);
+	const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchOrders = async () => {
-      try {
-        const response = await axios.get(`${SERVER_API_URL}/orders`);
-        setOrders(response.data || []);
-      } catch (error) {
-        setOrders([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchOrders();
-  }, []);
+	useEffect(() => {
+		const fetchOrders = async () => {
+			try {
+				const response = await axios.get(`${SERVER_API_URL}/orders`);
+				setOrders(response.data || []);
+			} catch (error) {
+				setOrders([]);
+			} finally {
+				setLoading(false);
+			}
+		};
+		fetchOrders();
+	}, []);
 
-  // Calculate total sales amount
-  const totalSales = orders.reduce((sum, order) => {
-    // If order has total_price, use it; else sum product prices
-    if (order.total_price) return sum + order.total_price;
-    if (order.products && Array.isArray(order.products)) {
-      return sum + order.products.reduce((pSum, p) => pSum + (p.price || 0), 0);
-    }
-    return sum;
-  }, 0);
+	// Calculate total sales amount
+	const totalSales = orders.reduce((sum, order) => {
+		// If order has total_price, use it; else sum product prices
+		if (order.total_price) return sum + order.total_price;
+		if (order.products && Array.isArray(order.products)) {
+			return sum + order.products.reduce((pSum, p) => pSum + (p.price || 0), 0);
+		}
+		return sum;
+	}, 0);
 
-  const styles = {
-    container: {
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      minHeight: '100vh',
-      backgroundColor: '#000',
-      padding: '20px',
-    },
-    dashboard: {
-      backgroundColor: '#fff',
-      padding: '2rem',
-      borderRadius: '12px',
-      boxShadow: '0 4px 20px rgba(255,255,255,0.1)',
-      width: '100%',
-      maxWidth: '700px',
-    },
-    header: {
-      textAlign: 'center',
-      marginBottom: '2rem',
-    },
-    title: {
-      fontSize: '2rem',
-      fontWeight: 'bold',
-      color: '#000',
-      margin: 0,
-      marginBottom: '0.5rem',
-    },
-    totalSales: {
-      fontSize: '1.2rem',
-      fontWeight: 'bold',
-      color: '#333',
-      marginBottom: '1.5rem',
-      textAlign: 'center',
-    },
-    ordersList: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '1rem',
-    },
-    orderItem: {
-      padding: '1rem',
-      border: '1px solid #e0e0e0',
-      borderRadius: '8px',
-      backgroundColor: '#f9f9f9',
-    },
-  };
+	const discountSavings = orders.reduce((sum, o) => {
+		const t = o.total_price || 0;
+		if (o.discounted_total != null) return sum + (t - o.discounted_total);
+		const d = o.discount || 0;
+		return sum + (t - (t - (t * d) / 100));
+	}, 0);
+	const approvedDiscounts = orders.filter(o => o.discount_status === 'approved').length;
 
-  return (
-    <>
-      <div
-        style={{
-          fontWeight: 'bold',
-          fontSize: '2rem',
-          color: '#fff',
-          backgroundColor: '#000',
-          textAlign: 'center',
-          marginBottom: '1.5rem',
-          marginTop: '0',
-          cursor: 'pointer',
-          letterSpacing: '2px',
-          padding: '1.2rem 0 1.2rem 0',
-          width: '100vw',
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          zIndex: 100,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <span style={{ flex: 1, cursor: 'pointer' }} onClick={() => navigate('/home')}>
-          NEXGROW
-        </span>
-        <button
-          style={{
-            position: 'absolute',
-            right: 24,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            background: '#fff',
-            color: '#000',
-            border: 'none',
-            borderRadius: '6px',
-            padding: '8px 18px',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-          onClick={async () => {
-            await signOut(auth);
-            navigate('/');
-          }}
-        >
-          Sign Out
-        </button>
-      </div>
-      <div style={{ ...styles.container, paddingTop: '5rem' }}>
-        <div style={styles.dashboard}>
-          <div style={styles.header}>
-            <h1 style={styles.title}>Dashboard</h1>
-          </div>
-          <div style={styles.totalSales}>
-            Total Sales: ₹{totalSales}
-          </div>
-          {loading ? (
-            <p style={{ textAlign: 'center', color: '#666' }}>Loading orders...</p>
-          ) : orders.length > 0 ? (
-            <div style={styles.ordersList}>
-              {orders.map((order, idx) => (
-                <div key={idx} style={styles.orderItem}>
-                  <p><strong>Order ID:</strong> {order.id || order._id}</p>
-                  <p><strong>State:</strong> {order.state}</p>
-                  <p><strong>Salesman:</strong> {order.salesman_name}</p>
-                  <p><strong>Dealer:</strong> {order.dealer_name}</p>
-                  {/* Show products if available */}
-                  {order.products && Array.isArray(order.products) ? (
-                    <div>
-                      <strong>Products:</strong>
-                      <ul>
-                        {order.products.map((p, i) => (
-                          <li key={i}>
-                            {p.product_name || p.product_id} - Qty: {p.quantity} - ₹{p.price}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : (
-                    <>
-                      <p><strong>Product:</strong> {order.product_name}</p>
-                      <p><strong>Quantity:</strong> {order.quantity}</p>
-                    </>
-                  )}
-                  <p><strong>Total Price:</strong> ₹{order.total_price}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p style={{ textAlign: 'center', color: '#666' }}>No orders found.</p>
-          )}
-          <button
-            onClick={() => navigate('/home')}
-            style={{
-              ...styles.ordersList,
-              padding: '12px 32px',
-              fontSize: '1.1rem',
-              fontWeight: '600',
-              color: '#fff',
-              backgroundColor: '#000',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              marginTop: '2rem',
-              textAlign: 'center',
-            }}
-            onMouseOver={e => {
-              e.target.style.backgroundColor = '#333';
-            }}
-            onMouseOut={e => {
-              e.target.style.backgroundColor = '#000';
-            }}
-          >
-            Back
-          </button>
-        </div>
-      </div>
-    </>
-  );
+	return (
+		<div className="app-shell" style={{ minHeight: '100vh' }}>
+			<header className="app-header">
+				<div className="app-header__logo" onClick={() => navigate('/home')}>NEXGROW</div>
+				<div className="app-header__actions">
+					<button className="btn danger" onClick={async () => { await signOut(auth); navigate('/'); }}>Sign Out</button>
+				</div>
+			</header>
+			<main className="page fade-in">
+				<h1 className="section-title" style={{ fontSize: '1.55rem' }}>Dashboard</h1>
+				<div className="stat-grid">
+					<div className="stat">
+						<h4>Total Sales (₹)</h4>
+						<div className="value">₹{formatINR(totalSales)}</div>
+					</div>
+					<div className="stat">
+						<h4>Discount Savings (₹)</h4>
+						<div className="value">₹{formatINR(discountSavings)}</div>
+					</div>
+					<div className="stat">
+						<h4>Approved Discounts</h4>
+						<div className="value">{approvedDiscounts}</div>
+					</div>
+					<div className="stat">
+						<h4>Total Orders</h4>
+						<div className="value">{orders.length}</div>
+					</div>
+				</div>
+				<div className="surface-card elevated" style={{ marginTop: '1.5rem' }}>
+					<h2 className="section-title" style={{ fontSize: '1rem' }}>Recent Orders</h2>
+					{loading ? <p>Loading orders...</p> : orders.length === 0 ? <p>No orders found.</p> : (
+						<ul className="order-list">
+							{orders.slice(0, 8).map((order, i) => {
+								const total = order.total_price || 0;
+								const discount = order.discount || 0;
+								const discounted = order.discounted_total != null ? order.discounted_total : total - (total * discount / 100);
+								return (
+									<li key={order._id || order.id || i} className="order-card">
+										<header>
+											<strong style={{ fontSize: '.75rem' }}>Order {order._id || order.id || (i + 1)}</strong>
+											<span className={order.discount_status === 'approved' ? 'badge success' : order.discount_status === 'pending' ? 'badge warning' : order.discount_status === 'rejected' ? 'badge danger' : 'badge'}>{(order.discount_status || 'N/A').toUpperCase()}</span>
+										</header>
+										<div style={{ fontSize: '.7rem', color: 'var(--brand-text-soft)', display: 'flex', flexWrap: 'wrap', gap: '.65rem' }}>
+											<span><strong style={{ color: 'var(--brand-text)' }}>State:</strong> {order.state || 'N/A'}</span>
+											<span><strong style={{ color: 'var(--brand-text)' }}>Salesman:</strong> {order.salesman_name || order.salesman_id || 'N/A'}</span>
+											<span><strong style={{ color: 'var(--brand-text)' }}>Dealer:</strong> {order.dealer_name || order.dealer_id || 'N/A'}</span>
+										</div>
+										<div className="order-metrics" style={{ marginTop: '.55rem' }}>
+											<span>Total: ₹{formatINR(total)}</span>
+											<span>Discount %: {formatPercent(discount,{decimals:2})}%</span>
+											<span>After: ₹{formatINR(discounted)}</span>
+										</div>
+									</li>
+								);
+							})}
+						</ul>
+					)}
+					<div style={{ marginTop: '1.35rem' }}>
+						<button className="btn secondary" onClick={() => navigate('/home')}>Back</button>
+					</div>
+				</div>
+			</main>
+		</div>
+	);
 };
 
 export default Dashboard;

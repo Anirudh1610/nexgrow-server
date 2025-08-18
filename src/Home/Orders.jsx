@@ -4,6 +4,7 @@ import axios from 'axios';
 import { SERVER_API_URL } from '../Auth/APIConfig';
 import { signOut } from 'firebase/auth';
 import { auth } from '../Auth/AuthConfig';
+import { formatINR, formatPercent } from './numberFormat';
 
 const Orders = () => {
   const [orders, setOrders] = useState([]);
@@ -14,7 +15,23 @@ const Orders = () => {
     const fetchOrders = async () => {
       try {
         const response = await axios.get(`${SERVER_API_URL}/orders`);
-        setOrders(response.data || []);
+        let data = response.data || [];
+        const getTs = (o) => {
+          const raw = o.created_at || o.createdAt || o.updated_at || o.date || o.timestamp || null;
+          const t = raw ? new Date(raw).getTime() : 0;
+          if (t && !isNaN(t)) return t;
+          // Fallback: derive from Mongo ObjectId first 8 hex chars -> seconds since epoch
+          if (o._id && typeof o._id === 'string' && o._id.length >= 8) {
+            try { return parseInt(o._id.substring(0,8),16) * 1000; } catch { return 0; }
+          }
+          return 0;
+        };
+        const withTs = data.map(o => ({ __ts: getTs(o), o }));
+        withTs.sort((a,b)=> b.__ts - a.__ts);
+        // If all timestamps are 0 (no usable data), just reverse original array as a fallback
+        const allZero = withTs.every(x=>x.__ts===0);
+        data = allZero ? data.slice().reverse() : withTs.map(x=>x.o);
+        setOrders(data);
       } catch (error) {
         console.error('Error fetching orders:', error);
         setOrders([]);
@@ -26,186 +43,108 @@ const Orders = () => {
     fetchOrders();
   }, []);
 
-  const handleBackToOrderForm = () => {
-    navigate('/');
-  };
-
-  const styles = {
-    container: {
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      minHeight: '100vh',
-      backgroundColor: '#000000',
-      padding: '20px',
-    },
-    ordersContainer: {
-      backgroundColor: '#ffffff',
-      padding: '2rem',
-      borderRadius: '12px',
-      boxShadow: '0 4px 20px rgba(255, 255, 255, 0.1)',
-      width: '100%',
-      maxWidth: '600px',
-    },
-    header: {
-      textAlign: 'center',
-      marginBottom: '2rem',
-    },
-    title: {
-      fontSize: '2rem',
-      fontWeight: 'bold',
-      color: '#000000',
-      margin: 0,
-      marginBottom: '0.5rem',
-    },
-    ordersList: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '1rem',
-    },
-    orderItem: {
-      padding: '1rem',
-      border: '1px solid #e0e0e0',
-      borderRadius: '8px',
-      backgroundColor: '#f9f9f9',
-    },
-    backButton: {
-      padding: '12px 32px',
-      fontSize: '1.1rem',
-      fontWeight: '600',
-      color: '#ffffff',
-      backgroundColor: '#000000',
-      border: 'none',
-      borderRadius: '8px',
-      cursor: 'pointer',
-      transition: 'all 0.3s ease',
-      marginTop: '1rem',
-    },
-  };
-
   return (
-    <>
-      <div
-        style={{
-          fontWeight: 'bold',
-          fontSize: '2rem',
-          color: '#fff',
-          backgroundColor: '#000',
-          textAlign: 'center',
-          marginBottom: '1.5rem',
-          marginTop: '0',
-          cursor: 'pointer',
-          letterSpacing: '2px',
-          padding: '1.2rem 0 1.2rem 0',
-          width: '100vw',
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          zIndex: 100,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <span style={{ flex: 1, cursor: 'pointer' }} onClick={() => navigate('/home')}>
-          NEXGROW
-        </span>
-        <button
-          style={{
-            position: 'absolute',
-            right: 24,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            background: '#fff',
-            color: '#000',
-            border: 'none',
-            borderRadius: '6px',
-            padding: '8px 18px',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-          onClick={async () => {
-            await signOut(auth);
-            navigate('/');
-          }}
-        >
-          Sign Out
-        </button>
-      </div>
-      <div style={{ ...styles.container, paddingTop: '5rem' }}>
-        <div style={styles.ordersContainer}>
-          <div style={styles.header}>
-            <h1 style={styles.title}>Orders</h1>
-          </div>
-
+    <div className="app-shell" style={{ minHeight: '100vh' }}>
+      <header className="app-header">
+        <div className="app-header__logo" onClick={() => navigate('/home')}>NEXGROW</div>
+        <div className="app-header__actions">
+          <button className="btn danger" onClick={async () => { await signOut(auth); navigate('/'); }}>Sign Out</button>
+        </div>
+      </header>
+      <main className="page narrow fade-in">
+        <div className="surface-card elevated" style={{ marginBottom: '1.25rem' }}>
+          <h1 className="section-title" style={{ fontSize: '1.4rem' }}>Orders</h1>
           {loading ? (
-            <p style={{ textAlign: 'center', color: '#666' }}>Loading orders...</p>
-          ) : orders.length > 0 ? (
-            <div style={styles.ordersList}>
-              {orders.map((order, index) => (
-                <div key={index} style={styles.orderItem}>
-                  <p>
-                    <strong>Salesman:</strong> {order.salesman_name || order.salesman_id || "N/A"}
-                  </p>
-                  <p>
-                    <strong>Dealer:</strong> {order.dealer_name || order.dealer_id || "N/A"}
-                  </p>
-                  {/* Show products for multi-product orders */}
-                  {order.products && Array.isArray(order.products) && order.products.length > 0 ? (
-                    <div>
-                      <strong>Products:</strong>
-                      <ul>
-                        {order.products.map((p, i) => (
-                          <li key={i}>
-                            {(p.product_name || p.product_id || "Unknown Product")} - Qty: {p.quantity}
+            <p style={{ margin: 0 }}>Loading orders...</p>
+          ) : orders.length === 0 ? (
+            <p style={{ margin: 0 }}>No orders found.</p>
+          ) : (
+            <ul className="order-list">
+              {orders.map((order, idx) => {
+                // Compute per-line discounts (similar to admin view)
+                const productsArr = Array.isArray(order.products) ? order.products : [];
+                let totalBase = 0; let totalDiscountAmtExact = 0; let hasExplicitLineDiscount = false;
+                let computedLines = productsArr.map(p => {
+                  const base = Number(p.price) || 0;
+                  let pct = (p.discount_pct !== undefined && p.discount_pct !== null) ? Number(p.discount_pct) : null;
+                  let discounted = (p.discounted_price !== undefined && p.discounted_price !== null) ? Number(p.discounted_price) : null;
+                  if (pct === null && discounted !== null && base > 0) {
+                    pct = ((base - discounted) / base) * 100;
+                  }
+                  if (discounted === null && pct !== null) {
+                    discounted = base - (base * pct / 100);
+                  }
+                  if (pct !== null && pct > 0) hasExplicitLineDiscount = true;
+                  if (pct === null) pct = 0;
+                  if (discounted === null) discounted = base;
+                  const lineDiscountAmt = base - discounted;
+                  totalBase += base;
+                  totalDiscountAmtExact += lineDiscountAmt;
+                  return { ...p, base, pct, discounted, lineDiscountAmt };
+                });
+                // Fallback approximate distribution for legacy orders
+                let fallbackApplied = false;
+                if (!hasExplicitLineDiscount && totalBase > 0) {
+                  let aggregateDiscountAmt = 0;
+                  if (order.discounted_total != null && order.discounted_total < totalBase) {
+                    aggregateDiscountAmt = totalBase - Number(order.discounted_total);
+                  } else if (order.discount && order.discount > 0) {
+                    aggregateDiscountAmt = totalBase * (Number(order.discount) / 100);
+                  }
+                  if (aggregateDiscountAmt > 0) {
+                    fallbackApplied = true;
+                    totalDiscountAmtExact = aggregateDiscountAmt;
+                    computedLines = computedLines.map(line => {
+                      const proportional = line.base / totalBase;
+                      const lineDiscountAmt = aggregateDiscountAmt * proportional;
+                      const discounted = line.base - lineDiscountAmt;
+                      const pct = line.base > 0 ? (lineDiscountAmt / line.base) * 100 : 0;
+                      return { ...line, pct, discounted, lineDiscountAmt };
+                    });
+                  }
+                }
+                const totalAfter = totalBase - totalDiscountAmtExact;
+                const effectivePct = totalBase > 0 ? (totalDiscountAmtExact / totalBase) * 100 : 0;
+                const status = order.discount_status || 'n/a';
+                const badgeClass = status === 'approved' ? 'badge success' : status === 'pending' ? 'badge warning' : status === 'rejected' ? 'badge danger' : 'badge';
+                return (
+                  <li key={order._id || order.id || idx} className="order-card">
+                    <header>
+                      <strong style={{ fontSize: '.9rem', letterSpacing: '.5px' }}>{order.order_code ? order.order_code : `Order #${idx + 1}`}</strong>
+                      <span className={badgeClass}>{status.toUpperCase()}</span>
+                    </header>
+                    <div style={{ fontSize: '.8rem', color: 'var(--brand-text-soft)', display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
+                      <span><strong style={{ color: 'var(--brand-text)' }}>Salesman:</strong> {order.salesman_name || order.salesman_id || 'N/A'}</span>
+                      <span><strong style={{ color: 'var(--brand-text)' }}>Dealer:</strong> {order.dealer_name || order.dealer_id || 'N/A'}</span>
+                      <span><strong style={{ color: 'var(--brand-text)' }}>State:</strong> {order.state || 'N/A'}</span>
+                    </div>
+                    {computedLines.length>0 && (
+                      <ul style={{ margin: '0.5rem 0 0 1rem', padding: 0, fontSize: '.75rem', listStyle: 'disc' }}>
+                        {computedLines.map((p, i) => (
+                          <li key={i} style={{ margin: '2px 0' }}>
+                            {p.product_name || p.product_id || 'Product'} - Qty: {formatINR(p.quantity,{decimals:0})} - Base: ₹{formatINR(p.base)}{p.pct>0 && <> - {formatPercent(p.pct,{decimals:2})}% (₹{formatINR(p.lineDiscountAmt)}) → <strong>₹{formatINR(p.discounted)}</strong></>}
                           </li>
                         ))}
                       </ul>
+                    )}
+                    <div className="order-metrics" style={{ marginTop: '.85rem' }}>
+                      <span>Total: ₹{formatINR(totalBase)}</span>
+                      <span>Discount Amt: ₹{formatINR(totalDiscountAmtExact)}</span>
+                      <span>After Discount: ₹{formatINR(totalAfter)}</span>
+                      <span>Effective %: {formatPercent(effectivePct,{decimals:2})}%</span>
                     </div>
-                  ) : (
-                    <p>
-                      <strong>Product:</strong> {order.product_name || "No product"}
-                    </p>
-                  )}
-                  <p><strong>Total Amount:</strong> ₹{order.total_price}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p style={{ textAlign: 'center', color: '#666' }}>No orders found.</p>
+                  </li>
+                );
+              })}
+            </ul>
           )}
-
-          <button
-            onClick={handleBackToOrderForm}
-            style={styles.backButton}
-            onMouseOver={(e) => {
-              e.target.style.backgroundColor = '#333333';
-              e.target.style.transform = 'translateY(-2px)';
-            }}
-            onMouseOut={(e) => {
-              e.target.style.backgroundColor = '#000000';
-              e.target.style.transform = 'translateY(0)';
-            }}
-          >
-            Back to Order Form
-          </button>
-          <button
-            style={{
-              ...styles.backButton,
-              marginTop: '1rem',
-              backgroundColor: '#fff',
-              color: '#000',
-              border: '2px solid #000',
-            }}
-            onClick={() => navigate('/home')}
-            onMouseOver={e => { e.target.style.backgroundColor = '#eee'; }}
-            onMouseOut={e => { e.target.style.backgroundColor = '#fff'; }}
-          >
-            Back
-          </button>
+          <div style={{ marginTop: '1.5rem', display: 'flex', gap: '.75rem' }}>
+            <button className="btn" onClick={() => navigate('/order-form')}>New Order</button>
+            <button className="btn secondary" onClick={() => navigate('/home')}>Back</button>
+          </div>
         </div>
-      </div>
-    </>
+      </main>
+    </div>
   );
 };
 
