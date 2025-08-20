@@ -13,36 +13,41 @@ const AdminManagement = () => {
   const [modalType, setModalType] = useState(''); // 'create' or 'edit'
   const [selectedItem, setSelectedItem] = useState(null);
   const [formData, setFormData] = useState({});
+  const [sortAsc, setSortAsc] = useState(true);
+  // NEW: per-column filters state
+  const [filters, setFilters] = useState({}); // legacy (kept if needed)
+  // NEW excel-style filter state
+  const [filterSelections, setFilterSelections] = useState({}); // { field: [values] }
+  const [openFilter, setOpenFilter] = useState(null); // current column field
+  const [tempSelection, setTempSelection] = useState([]); // working selection for open dropdown
+  const [filterSearch, setFilterSearch] = useState('');
+
+  // Reset filters when tab changes
+  useEffect(() => { setFilters({}); setFilterSelections({}); setOpenFilter(null); }, [activeTab]);
+
+  useEffect(() => {
+    if (openFilter) {
+      setTempSelection(filterSelections[openFilter] ? [...filterSelections[openFilter]] : []);
+      setFilterSearch('');
+    }
+  }, [openFilter, filterSelections]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = e => {
+      if (!e.target.closest('.excel-filter-dropdown') && !e.target.closest('.excel-filter-trigger')) {
+        setOpenFilter(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   // Form templates for different entities
   const formTemplates = {
-    salesmen: {
-      name: '',
-      email: '',
-      phone: '',
-      state: '',
-      admin: false
-    },
-    dealers: {
-      name: '',
-      phone: '',
-      state: '',
-      sales_man_id: '',
-      credit_limit: 100000
-    },
-    products: {
-      name: '',
-      category: '',
-      packing_size: '',
-      bottles_per_case: 1,
-      bottle_volume: '',
-      moq: '',
-      dealer_price_per_bottle: 0,
-      gst_percentage: 18,
-      billing_price_per_bottle: 0,
-      mrp_per_bottle: 0,
-      product_details: ''
-    }
+    salesmen: { name:'', email:'', phone:'', state:'', admin:false, active:true },
+    dealers: { name:'', phone:'', state:'', sales_man_id:'', credit_limit:100000, active:true },
+    products: { name:'', category:'', packing_size:'', bottles_per_case:1, bottle_volume:'', moq:'', dealer_price_per_bottle:0, gst_percentage:18, billing_price_per_bottle:0, mrp_per_bottle:0, product_details:'', active:true }
   };
 
   const fetchData = useCallback(async () => {
@@ -78,7 +83,7 @@ const AdminManagement = () => {
   const handleCreate = () => {
     setModalType('create');
     setSelectedItem(null);
-    setFormData(formTemplates[activeTab]);
+    setFormData(formTemplates[activeTab]); // includes active:true
     setShowModal(true);
   };
 
@@ -104,6 +109,22 @@ const AdminManagement = () => {
         console.error(`Error deleting ${activeTab.slice(0, -1)}:`, error);
       }
     }
+  };
+
+  const toggleActive = async (item, next) => {
+    try {
+      const id = item.id || item._id;
+      const url = `${SERVER_API_URL}/orders/admin/${activeTab}/${id}`;
+      // Build full payload (safer for backends expecting all fields)
+      const { _id, id:rid, __v, ...rest } = item;
+      const payload = { ...rest, active: next };
+      const response = await fetch(url, { method:'PUT', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
+      if (response.ok) {
+        fetchData();
+      } else {
+        console.error('Failed to toggle active');
+      }
+    } catch (e) { console.error('Error toggling active:', e); }
   };
 
   const handleSubmit = async (e) => {
@@ -144,77 +165,170 @@ const AdminManagement = () => {
   };
 
   const renderTable = () => {
-    let data, columns;
-    
-    switch (activeTab) {
-      case 'salesmen':
-        data = salesmen;
-        columns = ['Name', 'Email', 'Phone', 'State', 'Admin', 'Actions'];
-        break;
-      case 'dealers':
-        data = dealers;
-        columns = ['Name', 'Phone', 'State', 'Credit Limit', 'Actions'];
-        break;
-      case 'products':
-        data = products;
-        columns = ['Name', 'Category', 'Packing Size', 'Price per Bottle', 'GST %', 'Actions'];
-        break;
-      default:
-        return null;
-    }
+    let data, columnConfig;
+    // Define column configs with field mapping & type
+    const configs = {
+      salesmen: [ { label:'Name', field:'name', type:'text' }, { label:'Email', field:'email', type:'text' }, { label:'Phone', field:'phone', type:'text' }, { label:'State', field:'state', type:'text' }, { label:'Admin', field:'admin', type:'boolean' } ],
+      dealers: [ { label:'Name', field:'name', type:'text' }, { label:'Phone', field:'phone', type:'text' }, { label:'State', field:'state', type:'text' }, { label:'Credit Limit', field:'credit_limit', type:'number' } ],
+      products: [ { label:'Name', field:'name', type:'text' }, { label:'Category', field:'category', type:'text' }, { label:'Packing Size', field:'packing_size', type:'text' }, { label:'Price per Bottle', field:'dealer_price_per_bottle', type:'number' }, { label:'GST %', field:'gst_percentage', type:'number' } ]
+    };
+    switch (activeTab) { case 'salesmen': data = salesmen; columnConfig = configs.salesmen; break; case 'dealers': data = dealers; columnConfig = configs.dealers; break; case 'products': data = products; columnConfig = configs.products; break; default: return null; }
+
+    const activeData = data.filter(it => it.active !== false); // treat undefined as active
+
+    // Build sequential filtering like Excel: apply all active filters
+    const filteredData = activeData.filter(item => {
+      return Object.entries(filterSelections).every(([field, selected]) => {
+        if (!selected || selected.length === 0) return true;
+        const raw = item[field];
+        const valStr = field === 'admin' ? (raw ? 'Yes' : 'No') : String(raw ?? '');
+        return selected.includes(valStr);
+      });
+    });
+
+    // Sort by name
+    const sortedData = [...filteredData].sort((a,b)=> (a.name||'').localeCompare(b.name||'', undefined, { sensitivity:'base' }));
+    if (!sortAsc) sortedData.reverse();
+
+    // Helper to get unique values for a field based on current filters excluding that field (Excel behavior)
+    const getUniqueValues = field => {
+      const partialFiltered = activeData.filter(item => {
+        return Object.entries(filterSelections).every(([f, sel]) => {
+          if (f === field) return true; // ignore current field
+          if (!sel || sel.length === 0) return true;
+          const raw = item[f];
+          const valStr = f === 'admin' ? (raw ? 'Yes' : 'No') : String(raw ?? '');
+          return sel.includes(valStr);
+        });
+      });
+      const set = new Set();
+      partialFiltered.forEach(it => { const raw = it[field]; const valStr = field === 'admin' ? (raw ? 'Yes' : 'No') : String(raw ?? ''); set.add(valStr); });
+      return Array.from(set).sort((a,b)=>a.localeCompare(b, undefined, { sensitivity:'base' }));
+    };
+
+    const toggleTemp = (value) => {
+      setTempSelection(prev => prev.includes(value) ? prev.filter(v=>v!==value) : [...prev, value]);
+    };
+
+    const applyFilter = (field) => {
+      setFilterSelections(prev => ({ ...prev, [field]: [...tempSelection] }));
+      setOpenFilter(null);
+    };
+
+    const clearFilter = (field) => {
+      setFilterSelections(prev => ({ ...prev, [field]: [] }));
+      setTempSelection([]);
+      setOpenFilter(null);
+    };
 
     return (
       <div style={styles.tableContainer}>
+        <h4 style={styles.sectionTitle}>Active {activeTab.charAt(0).toUpperCase()+activeTab.slice(1)}</h4>
         <table style={styles.table}>
           <thead>
             <tr>
-              {columns.map(col => (
-                <th key={col} style={styles.th}>{col}</th>
-              ))}
+              {columnConfig.map(c => {
+                const active = filterSelections[c.field] && filterSelections[c.field].length > 0;
+                const values = openFilter === c.field ? getUniqueValues(c.field) : [];
+                const filteredValues = values.filter(v => v.toLowerCase().includes(filterSearch.toLowerCase()));
+                return (
+                  <th key={c.field} style={styles.th}>
+                    <div style={styles.headerCell}>
+                      <span>{c.label}</span>
+                      <button type="button" className="excel-filter-trigger" style={{ ...styles.filterTrigger, ...(active ? styles.filterTriggerActive : {}) }} onClick={() => setOpenFilter(o => o === c.field ? null : c.field)} title={active ? 'Modify filter' : 'Filter'}>▼</button>
+                    </div>
+                    {openFilter === c.field && (
+                      <div className="excel-filter-dropdown" style={styles.filterDropdown}>
+                        <div style={styles.filterSearchWrap}><input style={styles.filterSearch} placeholder="Search..." value={filterSearch} onChange={e => setFilterSearch(e.target.value)} /></div>
+                        <div style={styles.filterValues}>
+                          <label style={styles.filterValueRow}>
+                            <input type="checkbox" checked={filteredValues.length>0 && filteredValues.every(v => tempSelection.includes(v))} onChange={(e)=> { if (e.target.checked) { setTempSelection(prev => Array.from(new Set([...prev, ...filteredValues])));} else { setTempSelection(prev => prev.filter(v => !filteredValues.includes(v))); } }} />
+                            <span style={styles.filterValueText}>Select All</span>
+                          </label>
+                          {filteredValues.map(v => (
+                            <label key={v} style={styles.filterValueRow}>
+                              <input type="checkbox" checked={tempSelection.includes(v)} onChange={()=>setTempSelection(prev => prev.includes(v)? prev.filter(x=>x!==v): [...prev, v])} />
+                              <span style={styles.filterValueText}>{v === '' ? '(Blank)' : v}</span>
+                            </label>
+                          ))}
+                          {filteredValues.length === 0 && <div style={styles.noValues}>No values</div>}
+                        </div>
+                        <div style={styles.filterActionsBar}>
+                          <button type="button" style={styles.smallBtn} onClick={()=>{ setFilterSelections(prev => ({ ...prev, [c.field]: [...tempSelection] })); setOpenFilter(null); }}>Apply</button>
+                          <button type="button" style={styles.smallBtnSecondary} onClick={()=>{ setFilterSelections(prev => ({ ...prev, [c.field]: [] })); setTempSelection([]); setOpenFilter(null); }}>Clear</button>
+                        </div>
+                      </div>
+                    )}
+                  </th>
+                );
+              })}
+              <th style={styles.th}>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {data.map(item => (
+            {sortedData.map(item => (
               <tr key={item.id || item._id} style={styles.tr}>
-                {activeTab === 'salesmen' && (
-                  <>
-                    <td style={styles.td}>{item.name}</td>
-                    <td style={styles.td}>{item.email}</td>
-                    <td style={styles.td}>{item.phone || 'N/A'}</td>
-                    <td style={styles.td}>{item.state || 'N/A'}</td>
-                    <td style={styles.td}>{item.admin ? 'Yes' : 'No'}</td>
-                  </>
-                )}
-                {activeTab === 'dealers' && (
-                  <>
-                    <td style={styles.td}>{item.name}</td>
-                    <td style={styles.td}>{item.phone || 'N/A'}</td>
-                    <td style={styles.td}>{item.state || 'N/A'}</td>
-                    <td style={styles.td}>₹{item.credit_limit?.toLocaleString()}</td>
-                  </>
-                )}
-                {activeTab === 'products' && (
-                  <>
-                    <td style={styles.td}>{item.name}</td>
-                    <td style={styles.td}>{item.category}</td>
-                    <td style={styles.td}>{item.packing_size}</td>
-                    <td style={styles.td}>₹{item.dealer_price_per_bottle}</td>
-                    <td style={styles.td}>{item.gst_percentage}%</td>
-                  </>
-                )}
+                {columnConfig.map(c => {
+                  let display = item[c.field];
+                  if (c.field === 'credit_limit') display = `₹${(display ?? 0).toLocaleString()}`;
+                  if (c.field === 'admin') display = item.admin ? 'Yes' : 'No';
+                  if (c.field === 'dealer_price_per_bottle') display = `₹${display}`;
+                  if (c.field === 'gst_percentage') display = `${display}%`;
+                  return <td key={c.field} style={styles.td}>{display ?? 'N/A'}</td>;
+                })}
                 <td style={styles.td}>
-                  <button 
-                    style={styles.editButton} 
-                    onClick={() => handleEdit(item)}
-                  >
-                    Edit
-                  </button>
-                  <button 
-                    style={styles.deleteButton} 
-                    onClick={() => handleDelete(item.id || item._id)}
-                  >
-                    Delete
-                  </button>
+                  <button style={styles.editButton} onClick={() => handleEdit(item)}>Edit</button>
+                  <button style={styles.deactivateButton} onClick={() => toggleActive(item, false)}>Deactivate</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  const renderInactiveSection = () => {
+    let data = [];
+    if (activeTab === 'salesmen') data = salesmen; else if (activeTab === 'dealers') data = dealers; else if (activeTab === 'products') data = products;
+    const inactive = data.filter(it => it.active === false);
+    if (inactive.length === 0) return null;
+    const cols = { salesmen:['Name','Email','Phone','State','Admin'], dealers:['Name','Phone','State','Credit Limit'], products:['Name','Category','Packing Size','Price per Bottle','GST %'] }[activeTab];
+    return (
+      <div style={{ marginTop:'2rem' }}>
+        <h4 style={styles.sectionTitle}>Inactive {activeTab.charAt(0).toUpperCase()+activeTab.slice(1)}</h4>
+        <table style={styles.table}>
+          <thead>
+            <tr>
+              {cols.map(h => <th key={h} style={styles.th}>{h}</th>)}
+              <th style={styles.th}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {inactive.map(item => (
+              <tr key={item.id || item._id} style={styles.tr}>
+                {activeTab === 'salesmen' && (<>
+                  <td style={styles.td}>{item.name}</td>
+                  <td style={styles.td}>{item.email}</td>
+                  <td style={styles.td}>{item.phone || 'N/A'}</td>
+                  <td style={styles.td}>{item.state || 'N/A'}</td>
+                  <td style={styles.td}>{item.admin ? 'Yes':'No'}</td>
+                </>)}
+                {activeTab === 'dealers' && (<>
+                  <td style={styles.td}>{item.name}</td>
+                  <td style={styles.td}>{item.phone || 'N/A'}</td>
+                  <td style={styles.td}>{item.state || 'N/A'}</td>
+                  <td style={styles.td}>₹{item.credit_limit?.toLocaleString()}</td>
+                </>)}
+                {activeTab === 'products' && (<>
+                  <td style={styles.td}>{item.name}</td>
+                  <td style={styles.td}>{item.category}</td>
+                  <td style={styles.td}>{item.packing_size}</td>
+                  <td style={styles.td}>₹{item.dealer_price_per_bottle}</td>
+                  <td style={styles.td}>{item.gst_percentage}%</td>
+                </>)}
+                <td style={styles.td}>
+                  <button style={styles.activateButton} onClick={() => toggleActive(item, true)}>Activate</button>
                 </td>
               </tr>
             ))}
@@ -312,11 +426,12 @@ const AdminManagement = () => {
     createButton: { background:'var(--brand-green)', color:'#fff', border:'1px solid var(--brand-green)', padding:'.7rem 1.2rem', borderRadius:'var(--radius-md)', fontSize:'.8rem', fontWeight:600, letterSpacing:'.5px', cursor:'pointer', boxShadow:'var(--brand-shadow-sm)', transition:'var(--transition-base)' },
     tableContainer: { overflowX:'auto', marginTop:'.5rem' },
     table: { width:'100%', borderCollapse:'collapse', fontSize:'.75rem' },
-    th: { background:'var(--brand-surface-alt)', padding:'.6rem .75rem', textAlign:'left', borderBottom:'1px solid var(--brand-border)', fontWeight:600, fontSize:'.6rem', letterSpacing:'.8px', textTransform:'uppercase', color:'var(--brand-text-soft)' },
+    th: { background:'var(--brand-surface-alt)', padding:'.6rem .75rem', textAlign:'left', borderBottom:'1px solid var(--brand-border)', fontWeight:600, fontSize:'.6rem', letterSpacing:'.8px', textTransform:'uppercase', color:'var(--brand-text-soft)', position:'relative' },
     tr: { borderBottom:'1px solid var(--brand-border)' },
     td: { padding:'.6rem .75rem', verticalAlign:'middle' },
     editButton: { background:'var(--brand-green)', color:'#fff', border:'none', padding:'.45rem .7rem', borderRadius:'var(--radius-sm)', cursor:'pointer', fontSize:'.65rem', fontWeight:600, marginRight:'.4rem' },
-    deleteButton: { background:'#d83545', color:'#fff', border:'none', padding:'.45rem .7rem', borderRadius:'var(--radius-sm)', cursor:'pointer', fontSize:'.65rem', fontWeight:600 },
+    deactivateButton: { background:'#ff9800', color:'#fff', border:'none', padding:'.45rem .7rem', borderRadius:'var(--radius-sm)', cursor:'pointer', fontSize:'.65rem', fontWeight:600 },
+    activateButton: { background:'#17a2b8', color:'#fff', border:'none', padding:'.45rem .7rem', borderRadius:'var(--radius-sm)', cursor:'pointer', fontSize:'.65rem', fontWeight:600 },
     modal: { position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 },
     modalContent: { background:'#fff', padding:'1.75rem 1.5rem 2rem', borderRadius:'var(--radius-xl)', maxWidth:'520px', width:'95%', maxHeight:'85vh', overflow:'auto', boxShadow:'var(--brand-shadow-lg)' },
     form: { display:'flex', flexDirection:'column', gap:'.85rem', marginTop:'.75rem' },
@@ -327,6 +442,22 @@ const AdminManagement = () => {
     submitButton: { background:'var(--brand-green)', color:'#fff', border:'1px solid var(--brand-green)', padding:'.6rem 1.15rem', borderRadius:'var(--radius-md)', cursor:'pointer', fontSize:'.7rem', fontWeight:600, letterSpacing:'.5px' },
     cancelButton: { background:'#6c757d', color:'#fff', border:'1px solid #6c757d', padding:'.6rem 1.15rem', borderRadius:'var(--radius-md)', cursor:'pointer', fontSize:'.7rem', fontWeight:600 },
     backButton: { position:'absolute', top:'18px', left:'18px', background:'var(--brand-green)', color:'#fff', border:'1px solid var(--brand-green)', padding:'.55rem .95rem', borderRadius:'var(--radius-md)', cursor:'pointer', fontSize:'.65rem', fontWeight:600, letterSpacing:'.5px', boxShadow:'var(--brand-shadow-sm)' },
+    sortButton: { background:'#0f7030', color:'#fff', border:'1px solid #0f7030', padding:'.7rem 1.1rem', borderRadius:'var(--radius-md)', fontSize:'.7rem', fontWeight:600, cursor:'pointer', marginLeft:'.6rem' },
+    // NEW styles for excel filter
+    headerCell: { display:'flex', alignItems:'center', justifyContent:'space-between', gap:'.4rem' },
+    filterTrigger: { background:'#fff', border:'1px solid var(--brand-border)', borderRadius:'3px', padding:'0 .25rem', fontSize:'.55rem', cursor:'pointer', lineHeight:1.4, color:'var(--brand-text-soft)' },
+    filterTriggerActive: { background:'var(--brand-green)', color:'#fff', borderColor:'var(--brand-green)' },
+    filterDropdown: { position:'absolute', top:'100%', marginTop:'.25rem', right:0, zIndex:50, background:'#fff', border:'1px solid var(--brand-border)', borderRadius:'4px', minWidth:'190px', boxShadow:'0 4px 12px rgba(0,0,0,0.12)', padding:'.5rem', display:'flex', flexDirection:'column', gap:'.5rem' },
+    filterSearchWrap: { },
+    filterSearch: { width:'100%', padding:'.35rem .45rem', fontSize:'.6rem', border:'1px solid var(--brand-border)', borderRadius:'3px' },
+    filterValues: { maxHeight:'180px', overflowY:'auto', border:'1px solid var(--brand-border)', borderRadius:'3px', padding:'.35rem', display:'flex', flexDirection:'column', gap:'.25rem', background:'#fafafa' },
+    filterValueRow: { display:'flex', gap:'.4rem', alignItems:'center', fontSize:'.6rem', cursor:'pointer' },
+    filterValueText: { },
+    noValues: { fontSize:'.55rem', color:'var(--brand-text-soft)', textAlign:'center', padding:'.35rem 0' },
+    filterActionsBar: { display:'flex', justifyContent:'flex-end', gap:'.4rem' },
+    smallBtn: { background:'var(--brand-green)', color:'#fff', border:'1px solid var(--brand-green)', borderRadius:'3px', padding:'.35rem .55rem', fontSize:'.55rem', cursor:'pointer', fontWeight:600 },
+    smallBtnSecondary: { background:'#6c757d', color:'#fff', border:'1px solid #6c757d', borderRadius:'3px', padding:'.35rem .55rem', fontSize:'.55rem', cursor:'pointer', fontWeight:600 },
+    sectionTitle: { fontSize:'.85rem', fontWeight:600, margin:'1rem 0 .5rem', color:'var(--brand-text)' }
   };
 
   return (
@@ -364,18 +495,30 @@ const AdminManagement = () => {
         <button style={styles.createButton} onClick={handleCreate}>
           Add New {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
         </button>
+        <button
+          style={styles.sortButton}
+          onClick={() => setSortAsc(prev => !prev)}
+          title={`Sort ${sortAsc ? 'Z-A' : 'A-Z'}`}
+        >
+          Sort {sortAsc ? 'A-Z' : 'Z-A'}
+        </button>
         
         {loading ? (
           <div style={{textAlign: 'center', padding: '2rem'}}>Loading...</div>
         ) : (
-          renderTable()
+          <>
+            {renderTable()}
+            {renderInactiveSection()}
+          </>
         )}
       </div>
 
       {showModal && (
         <div style={styles.modal}>
           <div style={styles.modalContent}>
-            <h3>{modalType === 'create' ? 'Create' : 'Edit'} {activeTab.charAt(0).toUpperCase() + activeTab.slice(1, -1)}</h3>
+            {(() => { const singular = { salesmen: 'Salesman', dealers: 'Dealer', products: 'Product' }[activeTab] || activeTab; return (
+              <h3>{modalType === 'create' ? 'Create' : 'Edit'} {singular}</h3>
+            ); })()}
             {renderForm()}
           </div>
         </div>
