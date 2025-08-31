@@ -10,6 +10,9 @@ import Dashboard from './Home/Dashboard';
 import AdminDiscountApprovals from './Home/AdminDiscountApprovals';
 import AdminOrders from './Home/AdminOrders';
 import AdminManagement from './Home/AdminManagement';
+import axios from 'axios';
+import { SERVER_API_URL } from './Auth/APIConfig';
+import SalesManager from './Home/SalesManager';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -18,6 +21,25 @@ function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      // Auto-link Firebase UID to salesman by email (idempotent)
+      (async () => {
+        try {
+          if (currentUser?.uid && currentUser?.email) {
+            const key = `nexgrow_link_${currentUser.uid}`;
+            // Optional: avoid spamming on rapid reloads
+            if (!localStorage.getItem(key)) {
+              await axios.post(`${SERVER_API_URL}/orders/link-uid`, {
+                uid: currentUser.uid,
+                email: currentUser.email
+              });
+              try { localStorage.setItem(key, '1'); } catch {}
+            }
+          }
+        } catch (e) {
+          // Non-blocking; proceed even if linking fails
+          console.warn('Auto-link UID failed:', e?.response?.data || e?.message || e);
+        }
+      })();
       setLoading(false);
     });
 
@@ -58,6 +80,7 @@ function App() {
         <Route path="/order-form" element={<ProtectedRoute user={user}><OrderForm onSignOut={handleSignOut} /></ProtectedRoute>} />
         <Route path="/orders" element={<ProtectedRoute user={user}><Orders /></ProtectedRoute>} />
         <Route path="/dashboard" element={<ProtectedRoute user={user}><Dashboard /></ProtectedRoute>} />
+  <Route path="/manager" element={<ProtectedRoute user={user}><SalesManager /></ProtectedRoute>} />
         <Route path="/admin/orders" element={<ProtectedRoute user={user}><AdminOrders /></ProtectedRoute>} />
         <Route path="/admin/discount-approvals" element={<ProtectedRoute user={user}><AdminDiscountApprovals /></ProtectedRoute>} />
         <Route path="/admin/management" element={<ProtectedRoute user={user}><AdminManagement /></ProtectedRoute>} />

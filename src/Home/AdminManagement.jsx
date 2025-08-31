@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SERVER_API_URL } from '../Auth/APIConfig';
+import { formatINR } from './numberFormat';
 
 const AdminManagement = () => {
   const navigate = useNavigate();
@@ -21,6 +22,8 @@ const AdminManagement = () => {
   const [openFilter, setOpenFilter] = useState(null); // current column field
   const [tempSelection, setTempSelection] = useState([]); // working selection for open dropdown
   const [filterSearch, setFilterSearch] = useState('');
+  // NEW: form error for duplicate validation
+  const [formError, setFormError] = useState('');
 
   // Reset filters when tab changes
   useEffect(() => { setFilters({}); setFilterSelections({}); setOpenFilter(null); }, [activeTab]);
@@ -45,7 +48,16 @@ const AdminManagement = () => {
 
   // Form templates for different entities
   const formTemplates = {
-    salesmen: { name:'', email:'', phone:'', state:'', admin:false, active:true },
+    salesmen: {
+      name: '',
+      email: '',
+      phone: '',
+      state: '',
+  role: 'salesman',
+      admin: false,
+      sales_manager: '',
+      active: true
+    },
     dealers: { name:'', phone:'', state:'', sales_man_id:'', credit_limit:100000, active:true },
     products: { name:'', category:'', packing_size:'', bottles_per_case:1, bottle_volume:'', moq:'', dealer_price_per_bottle:0, gst_percentage:18, billing_price_per_bottle:0, mrp_per_bottle:0, product_details:'', active:true }
   };
@@ -83,16 +95,17 @@ const AdminManagement = () => {
   const handleCreate = () => {
     setModalType('create');
     setSelectedItem(null);
-    setFormData(formTemplates[activeTab]); // includes active:true
+    setFormData(formTemplates[activeTab]);
+    setFormError('');
     setShowModal(true);
   };
 
   const handleEdit = (item) => {
     setModalType('edit');
     setSelectedItem(item);
-    // Exclude immutable identifiers from editable form state
     const { _id, id, __v, ...rest } = item;
     setFormData(rest);
+    setFormError('');
     setShowModal(true);
   };
 
@@ -127,40 +140,81 @@ const AdminManagement = () => {
     } catch (e) { console.error('Error toggling active:', e); }
   };
 
+  const normalize = (v) => (v ?? '').toString().trim().toLowerCase();
+
+  const hasDuplicate = () => {
+    const currentId = selectedItem && (selectedItem.id || selectedItem._id);
+    const list = activeTab === 'salesmen' ? salesmen : activeTab === 'dealers' ? dealers : products;
+    const others = list.filter(x => (x.id || x._id) !== currentId);
+
+    if (activeTab === 'salesmen') {
+      const email = normalize(formData.email);
+      if (email && others.some(x => normalize(x.email) === email)) {
+        setFormError('A salesman with this email already exists.');
+        return true;
+      }
+      const phone = normalize(formData.phone);
+      if (phone && others.some(x => normalize(x.phone) === phone)) {
+        setFormError('A salesman with this phone already exists.');
+        return true;
+      }
+      return false;
+    }
+
+    if (activeTab === 'dealers') {
+      const name = normalize(formData.name);
+      const state = normalize(formData.state);
+      if (name && others.some(x => normalize(x.name) === name && normalize(x.state) === state)) {
+        setFormError('A dealer with this name already exists in the selected state.');
+        return true;
+      }
+      const phone = normalize(formData.phone);
+      if (phone && others.some(x => normalize(x.phone) === phone)) {
+        setFormError('A dealer with this phone already exists.');
+        return true;
+      }
+      return false;
+    }
+
+    // products
+    const pname = normalize(formData.name);
+    const psize = normalize(formData.packing_size);
+    if (pname && others.some(x => normalize(x.name) === pname && normalize(x.packing_size) === psize)) {
+      setFormError('A product with this name and packing size already exists.');
+      return true;
+    }
+    return false;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setFormError('');
+    // Duplicate guard
+    if (hasDuplicate()) return;
     try {
       const url = modalType === 'create' 
         ? `${SERVER_API_URL}/orders/admin/${activeTab}`
         : `${SERVER_API_URL}/orders/admin/${activeTab}/${selectedItem.id || selectedItem._id}`;
       const method = modalType === 'create' ? 'POST' : 'PUT';
-
-      // Build payload without immutable id fields
       const { _id, id, __v, ...payload } = formData;
-
-      // Optional: coerce numeric fields
       Object.keys(payload).forEach(k => {
         if (typeof formTemplates[activeTab][k] === 'number' && payload[k] !== '' && payload[k] !== null) {
           const num = Number(payload[k]);
-            if (!Number.isNaN(num)) payload[k] = num;
+          if (!Number.isNaN(num)) payload[k] = num;
         }
       });
-
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
+      const response = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (response.ok) {
         setShowModal(false);
         fetchData();
       } else {
         const errorText = await response.text();
         console.error('Server response:', response.status, errorText);
+        setFormError('Save failed. Please try again.');
       }
     } catch (error) {
       console.error(`Error ${modalType === 'create' ? 'creating' : 'updating'} ${activeTab.slice(0, -1)}:`, error);
+      setFormError('Unexpected error. Please try again.');
     }
   };
 
@@ -168,7 +222,7 @@ const AdminManagement = () => {
     let data, columnConfig;
     // Define column configs with field mapping & type
     const configs = {
-      salesmen: [ { label:'Name', field:'name', type:'text' }, { label:'Email', field:'email', type:'text' }, { label:'Phone', field:'phone', type:'text' }, { label:'State', field:'state', type:'text' }, { label:'Admin', field:'admin', type:'boolean' } ],
+      salesmen: [ { label:'Name', field:'name', type:'text' }, { label:'Email', field:'email', type:'text' }, { label:'Phone', field:'phone', type:'text' }, { label:'State', field:'state', type:'text' }, { label:'Role', field:'role', type:'text' }, { label:'Admin', field:'admin', type:'boolean' }, { label:'Sales Manager', field:'sales_manager', type:'text' } ],
       dealers: [ { label:'Name', field:'name', type:'text' }, { label:'Phone', field:'phone', type:'text' }, { label:'State', field:'state', type:'text' }, { label:'Credit Limit', field:'credit_limit', type:'number' } ],
       products: [ { label:'Name', field:'name', type:'text' }, { label:'Category', field:'category', type:'text' }, { label:'Packing Size', field:'packing_size', type:'text' }, { label:'Price per Bottle', field:'dealer_price_per_bottle', type:'number' }, { label:'GST %', field:'gst_percentage', type:'number' } ]
     };
@@ -270,8 +324,9 @@ const AdminManagement = () => {
               <tr key={item.id || item._id} style={styles.tr}>
                 {columnConfig.map(c => {
                   let display = item[c.field];
-                  if (c.field === 'credit_limit') display = `₹${(display ?? 0).toLocaleString()}`;
+                  if (c.field === 'credit_limit') display = `₹${formatINR(display, { decimals: 0 })}`;
                   if (c.field === 'admin') display = item.admin ? 'Yes' : 'No';
+                  if (c.field === 'role') display = item.role || (item.admin ? 'admin' : 'salesman');
                   if (c.field === 'dealer_price_per_bottle') display = `₹${display}`;
                   if (c.field === 'gst_percentage') display = `${display}%`;
                   return <td key={c.field} style={styles.td}>{display ?? 'N/A'}</td>;
@@ -293,7 +348,7 @@ const AdminManagement = () => {
     if (activeTab === 'salesmen') data = salesmen; else if (activeTab === 'dealers') data = dealers; else if (activeTab === 'products') data = products;
     const inactive = data.filter(it => it.active === false);
     if (inactive.length === 0) return null;
-    const cols = { salesmen:['Name','Email','Phone','State','Admin'], dealers:['Name','Phone','State','Credit Limit'], products:['Name','Category','Packing Size','Price per Bottle','GST %'] }[activeTab];
+  const cols = { salesmen:['Name','Email','Phone','State','Role','Admin','Sales Manager'], dealers:['Name','Phone','State','Credit Limit'], products:['Name','Category','Packing Size','Price per Bottle','GST %'] }[activeTab];
     return (
       <div style={{ marginTop:'2rem' }}>
         <h4 style={styles.sectionTitle}>Inactive {activeTab.charAt(0).toUpperCase()+activeTab.slice(1)}</h4>
@@ -312,13 +367,15 @@ const AdminManagement = () => {
                   <td style={styles.td}>{item.email}</td>
                   <td style={styles.td}>{item.phone || 'N/A'}</td>
                   <td style={styles.td}>{item.state || 'N/A'}</td>
+                  <td style={styles.td}>{item.role || (item.admin ? 'admin' : 'salesman')}</td>
                   <td style={styles.td}>{item.admin ? 'Yes':'No'}</td>
+                  <td style={styles.td}>{item.sales_manager || 'N/A'}</td>
                 </>)}
                 {activeTab === 'dealers' && (<>
                   <td style={styles.td}>{item.name}</td>
                   <td style={styles.td}>{item.phone || 'N/A'}</td>
                   <td style={styles.td}>{item.state || 'N/A'}</td>
-                  <td style={styles.td}>₹{item.credit_limit?.toLocaleString()}</td>
+                  <td style={styles.td}>₹{formatINR(item.credit_limit, { decimals: 0 })}</td>
                 </>)}
                 {activeTab === 'products' && (<>
                   <td style={styles.td}>{item.name}</td>
@@ -343,6 +400,7 @@ const AdminManagement = () => {
     
     return (
       <form onSubmit={handleSubmit} style={styles.form}>
+        {formError && <div style={styles.errorText}>{formError}</div>}
         {fields.map(field => {
           if (field === 'admin' && activeTab === 'salesmen') {
             return (
@@ -355,6 +413,24 @@ const AdminManagement = () => {
                   />
                   Admin
                 </label>
+              </div>
+            );
+          }
+
+          if (field === 'role' && activeTab === 'salesmen') {
+            return (
+              <div key={field} style={styles.formGroup}>
+                <label style={styles.label}>Role:</label>
+                <select
+                  value={formData[field] || 'salesman'}
+                  onChange={(e) => setFormData({ ...formData, [field]: e.target.value })}
+                  style={styles.input}
+                  required
+                >
+                  <option value="salesman">Salesman</option>
+                  <option value="sales_manager">Sales Manager</option>
+                  <option value="admin">Admin</option>
+                </select>
               </div>
             );
           }
@@ -380,6 +456,8 @@ const AdminManagement = () => {
             );
           }
           
+          // Only show sales_manager for salesmen
+          if (field === 'sales_manager' && activeTab !== 'salesmen') return null;
           const fieldType = typeof formTemplates[activeTab][field] === 'number' ? 'number' : 
                            field.includes('email') ? 'email' : 'text';
           
@@ -393,7 +471,7 @@ const AdminManagement = () => {
                 value={formData[field] || ''}
                 onChange={(e) => setFormData({...formData, [field]: e.target.value})}
                 style={styles.input}
-                required={field !== 'phone' && field !== 'product_details'}
+                required={field !== 'phone' && field !== 'product_details' && field !== 'sales_manager'}
               />
             </div>
           );
@@ -457,7 +535,8 @@ const AdminManagement = () => {
     filterActionsBar: { display:'flex', justifyContent:'flex-end', gap:'.4rem' },
     smallBtn: { background:'var(--brand-green)', color:'#fff', border:'1px solid var(--brand-green)', borderRadius:'3px', padding:'.35rem .55rem', fontSize:'.55rem', cursor:'pointer', fontWeight:600 },
     smallBtnSecondary: { background:'#6c757d', color:'#fff', border:'1px solid #6c757d', borderRadius:'3px', padding:'.35rem .55rem', fontSize:'.55rem', cursor:'pointer', fontWeight:600 },
-    sectionTitle: { fontSize:'.85rem', fontWeight:600, margin:'1rem 0 .5rem', color:'var(--brand-text)' }
+    sectionTitle: { fontSize:'.85rem', fontWeight:600, margin:'1rem 0 .5rem', color:'var(--brand-text)' },
+    errorText: { color:'#d83545', background:'#fdecee', border:'1px solid #f7c2c7', padding:'.5rem .65rem', borderRadius:'6px', fontSize:'.72rem' }
   };
 
   return (

@@ -32,6 +32,11 @@ const AdminOrders = () => {
           NEXGROW
         </div>
         <div className="app-header__actions">
+          <div className="header-nav" style={{ display:'flex', gap:'.5rem', marginRight:'.5rem' }}>
+            <button className="btn secondary" onClick={()=>navigate('/orders')}>Salesman</button>
+            <button className="btn secondary" onClick={()=>navigate('/manager')}>Manager</button>
+            <button className="btn secondary" onClick={()=>navigate('/admin/orders')}>Admin</button>
+          </div>
           <button
             className="btn danger"
             onClick={async () => {

@@ -2,18 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { SERVER_API_URL } from '../Auth/APIConfig';
-import { signOut } from 'firebase/auth';
+import { signOut, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../Auth/AuthConfig';
 import { formatINR, formatPercent } from './numberFormat';
 
 const Orders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     const fetchOrders = async () => {
       try {
+        // TEST MODE: Fetch all orders for all users
         const response = await axios.get(`${SERVER_API_URL}/orders`);
         let data = response.data || [];
         const getTs = (o) => {
@@ -48,6 +57,11 @@ const Orders = () => {
       <header className="app-header">
         <div className="app-header__logo" onClick={() => navigate('/home')}>NEXGROW</div>
         <div className="app-header__actions">
+          <div className="header-nav" style={{ display:'flex', gap:'.5rem', marginRight:'.5rem' }}>
+            <button className="btn secondary" onClick={()=>navigate('/orders')}>Salesman</button>
+            <button className="btn secondary" onClick={()=>navigate('/manager')}>Manager</button>
+            <button className="btn secondary" onClick={()=>navigate('/admin/orders')}>Admin</button>
+          </div>
           <button className="btn danger" onClick={async () => { await signOut(auth); navigate('/'); }}>Sign Out</button>
         </div>
       </header>
