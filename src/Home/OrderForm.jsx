@@ -515,6 +515,7 @@ const OrderForm = ({ onSignOut }) => {
                   const pct = Number(entry.discount) || 0;
                   const lineDiscountAmt = base * pct / 100;
                   const after = base - lineDiscountAmt;
+                  const selectedProduct = (products || []).find(p => (p._id || p.id) === entry.product) || {};
                   return (
                   <div key={idx} className="surface-card" style={{padding:'1rem 1.1rem 1.15rem',boxShadow:'none',border:'1px solid var(--brand-border)'}}>
                     <div className="form-grid" style={{gap:'.9rem'}}>
@@ -529,7 +530,22 @@ const OrderForm = ({ onSignOut }) => {
                         <label>Size</label>
                         <select value={entry.productSize} onChange={e=>handleProductEntryChange(idx,'productSize',e.target.value)} className="input" required disabled={!entry.product || entry.loadingPackingSizes}>
                           <option value="">{!entry.product ? 'Select product first' : entry.loadingPackingSizes ? 'Loading sizes...' : 'Choose size'}</option>
-                          {entry.packingSizes.map(p=> (<option key={p._id || p.id} value={p._id || p.id}>{p.packing_size || p.size || p.name}{p.bottles_per_case?` - ${p.bottles_per_case} bottles`:''}{p.bottle_volume?` x ${p.bottle_volume}`:''}{p.moq?` | MOQ: ${p.moq}`:''}</option>))}
+                          {entry.packingSizes.map(p=> {
+                            const packingText = (p.packing_size || p.size || p.name || '').toString();
+                            const cat = (selectedProduct.category || '').toString();
+                            const isPowderLike = /granule|powder|bag|kg|sachet|pack/i.test(`${cat} ${packingText}`);
+                            const itemUnitLabel = isPowderLike ? 'packs' : 'bottles';
+                            const vol = (p.bottle_volume ?? '').toString();
+                            const showVol = vol && vol.toLowerCase() !== 'unit';
+                            return (
+                              <option key={p._id || p.id} value={p._id || p.id}>
+                                {packingText}
+                                {p.bottles_per_case ? ` - ${p.bottles_per_case} ${itemUnitLabel}` : ''}
+                                {showVol ? ` x ${vol}` : ''}
+                                {p.moq ? ` | MOQ: ${p.moq}` : ''}
+                              </option>
+                            );
+                          })}
                         </select>
                       </div>
                       <div className="form-row">

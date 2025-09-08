@@ -9,6 +9,8 @@ const AdminManagement = () => {
   const [salesmen, setSalesmen] = useState([]);
   const [dealers, setDealers] = useState([]);
   const [products, setProducts] = useState([]);
+  const [salesManagers, setSalesManagers] = useState([]);
+  const [directors, setDirectors] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState(''); // 'create' or 'edit'
@@ -24,9 +26,19 @@ const AdminManagement = () => {
   const [filterSearch, setFilterSearch] = useState('');
   // NEW: form error for duplicate validation
   const [formError, setFormError] = useState('');
+  // For Sales Manager team multi-select UI
+  const [teamDropdownOpen, setTeamDropdownOpen] = useState(false);
+  const [teamSearch, setTeamSearch] = useState('');
+  const pretty = (t) => (t || '').replace(/_/g, ' ').replace(/\b\w/g, m => m.toUpperCase());
 
   // Reset filters when tab changes
-  useEffect(() => { setFilters({}); setFilterSelections({}); setOpenFilter(null); }, [activeTab]);
+  useEffect(() => { 
+    setFilters({}); 
+    setFilterSelections({}); 
+    setOpenFilter(null);
+    setTeamDropdownOpen(false);
+    setTeamSearch('');
+  }, [activeTab]);
 
   useEffect(() => {
     if (openFilter) {
@@ -35,11 +47,14 @@ const AdminManagement = () => {
     }
   }, [openFilter, filterSelections]);
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     const handler = e => {
       if (!e.target.closest('.excel-filter-dropdown') && !e.target.closest('.excel-filter-trigger')) {
         setOpenFilter(null);
+      }
+      if (!e.target.closest('.team-multi-select')) {
+        setTeamDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -58,6 +73,9 @@ const AdminManagement = () => {
       sales_manager: '',
       active: true
     },
+  // Show state first and add salesmen_ids for team linkage
+  sales_managers: { state:'', name:'', email:'', phone:'', salesmen_ids:[], active:true },
+  directors: { name:'', email:'', phone:'', active:true },
     dealers: { name:'', phone:'', state:'', sales_man_id:'', credit_limit:100000, active:true },
     products: { name:'', category:'', packing_size:'', bottles_per_case:1, bottle_volume:'', moq:'', dealer_price_per_bottle:0, gst_percentage:18, billing_price_per_bottle:0, mrp_per_bottle:0, product_details:'', active:true }
   };
@@ -71,6 +89,12 @@ const AdminManagement = () => {
         switch (activeTab) {
           case 'salesmen':
             setSalesmen(data);
+            break;
+          case 'sales_managers':
+            setSalesManagers(data);
+            break;
+          case 'directors':
+            setDirectors(data);
             break;
           case 'dealers':
             setDealers(data);
@@ -92,6 +116,23 @@ const AdminManagement = () => {
     fetchData();
   }, [fetchData]);
 
+  // Ensure salesmen list is available for dealers/manager forms and team display
+  useEffect(() => {
+    const loadSalesmen = async () => {
+      try {
+        const resp = await fetch(`${SERVER_API_URL}/orders/admin/salesmen`);
+        if (resp.ok) {
+          const data = await resp.json();
+          setSalesmen(data);
+        }
+      } catch (e) { console.error('Error preloading salesmen:', e); }
+    };
+    // Preload when viewing tabs that depend on salesmen or on initial mount
+    if (activeTab === 'sales_managers' || activeTab === 'dealers') {
+      loadSalesmen();
+    }
+  }, [activeTab]);
+
   const handleCreate = () => {
     setModalType('create');
     setSelectedItem(null);
@@ -104,7 +145,8 @@ const AdminManagement = () => {
     setModalType('edit');
     setSelectedItem(item);
     const { _id, id, __v, ...rest } = item;
-    setFormData(rest);
+    // Merge defaults to ensure new fields like salesmen_ids exist
+    setFormData({ ...formTemplates[activeTab], ...rest });
     setFormError('');
     setShowModal(true);
   };
@@ -144,7 +186,10 @@ const AdminManagement = () => {
 
   const hasDuplicate = () => {
     const currentId = selectedItem && (selectedItem.id || selectedItem._id);
-    const list = activeTab === 'salesmen' ? salesmen : activeTab === 'dealers' ? dealers : products;
+    const list = activeTab === 'salesmen' ? salesmen 
+      : activeTab === 'sales_managers' ? salesManagers
+      : activeTab === 'directors' ? directors
+      : activeTab === 'dealers' ? dealers : products;
     const others = list.filter(x => (x.id || x._id) !== currentId);
 
     if (activeTab === 'salesmen') {
@@ -156,6 +201,20 @@ const AdminManagement = () => {
       const phone = normalize(formData.phone);
       if (phone && others.some(x => normalize(x.phone) === phone)) {
         setFormError('A salesman with this phone already exists.');
+        return true;
+      }
+      return false;
+    }
+
+    if (activeTab === 'sales_managers' || activeTab === 'directors') {
+      const email = normalize(formData.email);
+      if (email && others.some(x => normalize(x.email) === email)) {
+        setFormError(`An entry with this email already exists.`);
+        return true;
+      }
+      const phone = normalize(formData.phone);
+      if (phone && others.some(x => normalize(x.phone) === phone)) {
+        setFormError(`An entry with this phone already exists.`);
         return true;
       }
       return false;
@@ -223,10 +282,20 @@ const AdminManagement = () => {
     // Define column configs with field mapping & type
     const configs = {
       salesmen: [ { label:'Name', field:'name', type:'text' }, { label:'Email', field:'email', type:'text' }, { label:'Phone', field:'phone', type:'text' }, { label:'State', field:'state', type:'text' }, { label:'Role', field:'role', type:'text' }, { label:'Admin', field:'admin', type:'boolean' }, { label:'Sales Manager', field:'sales_manager', type:'text' } ],
+      // Add Team column (non-filterable) for managers
+      sales_managers: [ { label:'Name', field:'name', type:'text' }, { label:'Email', field:'email', type:'text' }, { label:'Phone', field:'phone', type:'text' }, { label:'State', field:'state', type:'text' }, { label:'Team', field:'salesmen_ids', type:'team' } ],
+      directors: [ { label:'Name', field:'name', type:'text' }, { label:'Email', field:'email', type:'text' }, { label:'Phone', field:'phone', type:'text' } ],
       dealers: [ { label:'Name', field:'name', type:'text' }, { label:'Phone', field:'phone', type:'text' }, { label:'State', field:'state', type:'text' }, { label:'Credit Limit', field:'credit_limit', type:'number' } ],
       products: [ { label:'Name', field:'name', type:'text' }, { label:'Category', field:'category', type:'text' }, { label:'Packing Size', field:'packing_size', type:'text' }, { label:'Price per Bottle', field:'dealer_price_per_bottle', type:'number' }, { label:'GST %', field:'gst_percentage', type:'number' } ]
     };
-    switch (activeTab) { case 'salesmen': data = salesmen; columnConfig = configs.salesmen; break; case 'dealers': data = dealers; columnConfig = configs.dealers; break; case 'products': data = products; columnConfig = configs.products; break; default: return null; }
+    switch (activeTab) { 
+      case 'salesmen': data = salesmen; columnConfig = configs.salesmen; break; 
+      case 'sales_managers': data = salesManagers; columnConfig = configs.sales_managers; break;
+      case 'directors': data = directors; columnConfig = configs.directors; break;
+      case 'dealers': data = dealers; columnConfig = configs.dealers; break; 
+      case 'products': data = products; columnConfig = configs.products; break; 
+      default: return null; 
+    }
 
     const activeData = data.filter(it => it.active !== false); // treat undefined as active
 
@@ -277,21 +346,23 @@ const AdminManagement = () => {
 
     return (
       <div style={styles.tableContainer}>
-        <h4 style={styles.sectionTitle}>Active {activeTab.charAt(0).toUpperCase()+activeTab.slice(1)}</h4>
+  <h4 style={styles.sectionTitle}>Active {pretty(activeTab)}</h4>
         <table style={styles.table}>
           <thead>
             <tr>
               {columnConfig.map(c => {
                 const active = filterSelections[c.field] && filterSelections[c.field].length > 0;
-                const values = openFilter === c.field ? getUniqueValues(c.field) : [];
+                const values = c.type === 'team' ? [] : (openFilter === c.field ? getUniqueValues(c.field) : []);
                 const filteredValues = values.filter(v => v.toLowerCase().includes(filterSearch.toLowerCase()));
                 return (
                   <th key={c.field} style={styles.th}>
                     <div style={styles.headerCell}>
                       <span>{c.label}</span>
-                      <button type="button" className="excel-filter-trigger" style={{ ...styles.filterTrigger, ...(active ? styles.filterTriggerActive : {}) }} onClick={() => setOpenFilter(o => o === c.field ? null : c.field)} title={active ? 'Modify filter' : 'Filter'}>▼</button>
+                      {c.type !== 'team' && (
+                        <button type="button" className="excel-filter-trigger" style={{ ...styles.filterTrigger, ...(active ? styles.filterTriggerActive : {}) }} onClick={() => setOpenFilter(o => o === c.field ? null : c.field)} title={active ? 'Modify filter' : 'Filter'}>▼</button>
+                      )}
                     </div>
-                    {openFilter === c.field && (
+                    {openFilter === c.field && c.type !== 'team' && (
                       <div className="excel-filter-dropdown" style={styles.filterDropdown}>
                         <div style={styles.filterSearchWrap}><input style={styles.filterSearch} placeholder="Search..." value={filterSearch} onChange={e => setFilterSearch(e.target.value)} /></div>
                         <div style={styles.filterValues}>
@@ -329,6 +400,22 @@ const AdminManagement = () => {
                   if (c.field === 'role') display = item.role || (item.admin ? 'admin' : 'salesman');
                   if (c.field === 'dealer_price_per_bottle') display = `₹${display}`;
                   if (c.field === 'gst_percentage') display = `${display}%`;
+                  if (c.type === 'team') {
+                    const ids = Array.isArray(item.salesmen_ids) ? item.salesmen_ids : [];
+                    const map = new Map((salesmen || []).map(s => [String(s.id || s._id), s.name]));
+                    const names = ids.map(id => map.get(String(id))).filter(Boolean);
+                    const shown = names.slice(0, 3);
+                    const extra = names.length - shown.length;
+                    return (
+                      <td key={c.field} style={styles.td}>
+                        <div style={styles.chipsWrap}>
+                          {shown.map(n => <span key={n} style={styles.chip}>{n}</span>)}
+                          {extra > 0 && <span style={styles.chipMuted}>+{extra}</span>}
+                          {names.length === 0 && <span style={{ color: 'var(--brand-text-soft)' }}>—</span>}
+                        </div>
+                      </td>
+                    );
+                  }
                   return <td key={c.field} style={styles.td}>{display ?? 'N/A'}</td>;
                 })}
                 <td style={styles.td}>
@@ -345,13 +432,23 @@ const AdminManagement = () => {
 
   const renderInactiveSection = () => {
     let data = [];
-    if (activeTab === 'salesmen') data = salesmen; else if (activeTab === 'dealers') data = dealers; else if (activeTab === 'products') data = products;
+    if (activeTab === 'salesmen') data = salesmen; 
+    else if (activeTab === 'sales_managers') data = salesManagers;
+    else if (activeTab === 'directors') data = directors;
+    else if (activeTab === 'dealers') data = dealers; 
+  else if (activeTab === 'products') data = products;
     const inactive = data.filter(it => it.active === false);
     if (inactive.length === 0) return null;
-  const cols = { salesmen:['Name','Email','Phone','State','Role','Admin','Sales Manager'], dealers:['Name','Phone','State','Credit Limit'], products:['Name','Category','Packing Size','Price per Bottle','GST %'] }[activeTab];
+  const cols = { 
+    salesmen:['Name','Email','Phone','State','Role','Admin','Sales Manager'], 
+    sales_managers:['Name','Email','Phone','State','Team'], 
+    directors:['Name','Email','Phone'], 
+    dealers:['Name','Phone','State','Credit Limit'], 
+    products:['Name','Category','Packing Size','Price per Bottle','GST %'] 
+  }[activeTab];
     return (
       <div style={{ marginTop:'2rem' }}>
-        <h4 style={styles.sectionTitle}>Inactive {activeTab.charAt(0).toUpperCase()+activeTab.slice(1)}</h4>
+  <h4 style={styles.sectionTitle}>Inactive {pretty(activeTab)}</h4>
         <table style={styles.table}>
           <thead>
             <tr>
@@ -377,6 +474,33 @@ const AdminManagement = () => {
                   <td style={styles.td}>{item.state || 'N/A'}</td>
                   <td style={styles.td}>₹{formatINR(item.credit_limit, { decimals: 0 })}</td>
                 </>)}
+                {activeTab === 'sales_managers' && (<>
+                  <td style={styles.td}>{item.name}</td>
+                  <td style={styles.td}>{item.email}</td>
+                  <td style={styles.td}>{item.phone || 'N/A'}</td>
+                  <td style={styles.td}>{item.state || 'N/A'}</td>
+                  <td style={styles.td}>
+                    {(() => {
+                      const ids = Array.isArray(item.salesmen_ids) ? item.salesmen_ids : [];
+                      const map = new Map((salesmen || []).map(s => [String(s.id || s._id), s.name]));
+                      const names = ids.map(id => map.get(String(id))).filter(Boolean);
+                      const shown = names.slice(0, 3);
+                      const extra = names.length - shown.length;
+                      return (
+                        <div style={styles.chipsWrap}>
+                          {shown.map(n => <span key={n} style={styles.chip}>{n}</span>)}
+                          {extra > 0 && <span style={styles.chipMuted}>+{extra}</span>}
+                          {names.length === 0 && <span style={{ color: 'var(--brand-text-soft)' }}>—</span>}
+                        </div>
+                      );
+                    })()}
+                  </td>
+                </>)}
+                {activeTab === 'directors' && (<>
+                  <td style={styles.td}>{item.name}</td>
+                  <td style={styles.td}>{item.email}</td>
+                  <td style={styles.td}>{item.phone || 'N/A'}</td>
+                </>)}
                 {activeTab === 'products' && (<>
                   <td style={styles.td}>{item.name}</td>
                   <td style={styles.td}>{item.category}</td>
@@ -397,6 +521,33 @@ const AdminManagement = () => {
 
   const renderForm = () => {
     const fields = Object.keys(formTemplates[activeTab]);
+    const selectedState = (formData && formData.state) ? String(formData.state).toLowerCase() : '';
+    // Salesmen filtered by selected state for manager team assignment
+    const salesmenInState = (salesmen || [])
+      .filter(s => (s.active !== false))
+      .filter(s => selectedState ? String(s.state || '').toLowerCase() === selectedState : true)
+      .sort((a,b)=> (a.name||'').localeCompare(b.name||'', undefined, { sensitivity:'base' }));
+    // Sales managers available from salesmen table (role-based, no state dependency)
+    const managersFromSalesmen = (salesmen || [])
+      .filter(s => (s.active !== false))
+      .filter(s => (s.role || (s.admin ? 'admin' : 'salesman')) === 'sales_manager')
+      .sort((a,b)=> (a.name||'').localeCompare(b.name||'', undefined, { sensitivity:'base' }));
+    // Unique list of states from salesmen for dropdown
+    const salesmenStates = Array.from(new Set(
+      (salesmen || [])
+        .map(s => (s.state || '').toString().trim())
+        .filter(Boolean)
+    )).sort((a,b)=> a.localeCompare(b, undefined, { sensitivity:'base' }));
+    const currentTeam = Array.isArray(formData.salesmen_ids) ? formData.salesmen_ids.map(String) : [];
+    const toggleTeamMember = (id) => {
+      const sid = String(id);
+      setFormData(prev => ({
+        ...prev,
+        salesmen_ids: currentTeam.includes(sid)
+          ? currentTeam.filter(x => x !== sid)
+          : [...currentTeam, sid]
+      }));
+    };
     
     return (
       <form onSubmit={handleSubmit} style={styles.form}>
@@ -434,6 +585,146 @@ const AdminManagement = () => {
               </div>
             );
           }
+
+          // Team assignment for Sales Managers
+          if (activeTab === 'sales_managers' && field === 'salesmen_ids') {
+            const selectedNames = currentTeam
+              .map(id => (salesmen || []).find(s => String(s.id || s._id) === String(id)))
+              .filter(Boolean)
+              .map(s => s.name);
+            return (
+              <div key={field} style={styles.formGroup}>
+                <label style={styles.label}>Salesmen (filtered by State):</label>
+                <div style={{ ...styles.multiSelectContainer, ...(selectedState ? {} : { opacity:.7 }) }} className="team-multi-select">
+                  <div style={styles.multiSelectDisplay} onClick={() => setTeamDropdownOpen(o => !o)}>
+                    {selectedNames.length === 0 && (
+                      <span style={{ color: 'var(--brand-text-soft)' }}>
+                        {selectedState ? 'Select salesmen' : 'Select state first'}
+                      </span>
+                    )}
+                    {selectedNames.length > 0 && (
+                      <div style={styles.chipsWrap}>
+                        {selectedNames.slice(0, 3).map(n => <span key={n} style={styles.chip}>{n}</span>)}
+                        {selectedNames.length > 3 && <span style={styles.chipMuted}>+{selectedNames.length - 3}</span>}
+                      </div>
+                    )}
+                    <span style={styles.caret}>▼</span>
+                  </div>
+                  {teamDropdownOpen && selectedState && (
+                    <div style={styles.multiSelectDropdown} className="excel-filter-dropdown">
+                      <input
+                        placeholder="Search salesmen..."
+                        value={teamSearch}
+                        onChange={e => setTeamSearch(e.target.value)}
+                        style={styles.filterSearch}
+                      />
+                      <div style={styles.filterValues}>
+                        {salesmenInState
+                          .filter(s => (s.name || '').toLowerCase().includes(teamSearch.toLowerCase()))
+                          .map(s => {
+                            const sid = String(s.id || s._id);
+                            const checked = currentTeam.includes(sid);
+                            return (
+                              <label key={sid} style={styles.filterValueRow}>
+                                <input type="checkbox" checked={checked} onChange={() => toggleTeamMember(sid)} />
+                                <span style={styles.filterValueText}>{s.name}</span>
+                              </label>
+                            );
+                          })}
+                        {salesmenInState.length === 0 && (
+                          <div style={styles.noValues}>No salesmen found for selected state.</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          // State dropdown for Sales Managers with 'Others' option
+          if (activeTab === 'sales_managers' && field === 'state') {
+            const current = (formData.state || '').toString();
+            const match = salesmenStates.find(s => s.toLowerCase() === current.toLowerCase());
+            const selectValue = current === '' ? '' : (match ? match : '__other__');
+            return (
+              <div key={field} style={styles.formGroup}>
+                <label style={styles.label}>State:</label>
+                <select
+                  value={selectValue}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === '__other__') {
+                      setTeamDropdownOpen(false);
+                      setTeamSearch('');
+                      // keep existing custom state if any, just clear team
+                      setFormData(prev => ({ ...prev, salesmen_ids: [] }));
+                    } else {
+                      setTeamDropdownOpen(false);
+                      setTeamSearch('');
+                      setFormData(prev => ({ ...prev, state: v, salesmen_ids: [] }));
+                    }
+                  }}
+                  style={styles.input}
+                  required
+                >
+                  <option value="">Select State</option>
+                  {salesmenStates.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                  <option value="__other__">Others</option>
+                </select>
+                {selectValue === '__other__' && (
+                  <input
+                    placeholder="Enter state"
+                    value={formData.state || ''}
+                    onChange={(e) => {
+                      setTeamDropdownOpen(false);
+                      setTeamSearch('');
+                      setFormData(prev => ({ ...prev, state: e.target.value, salesmen_ids: [] }));
+                    }}
+                    style={{ ...styles.input, marginTop: '.5rem' }}
+                    required
+                  />
+                )}
+              </div>
+            );
+          }
+
+          // Name dropdown for Sales Managers (from salesmen in selected state)
+          if (activeTab === 'sales_managers' && field === 'name') {
+            const selectedId = (() => {
+              const match = managersFromSalesmen.find(s => (s.name || '') === (formData.name || ''));
+              return match ? String(match.id || match._id) : '';
+            })();
+            return (
+              <div key={field} style={styles.formGroup}>
+                <label style={styles.label}>Sales Manager Name:</label>
+                <select
+                  value={selectedId}
+                  onChange={(e) => {
+                    const sid = e.target.value;
+                    if (!sid) {
+                      setFormData(prev => ({ ...prev, name:'', email:'', phone:'' }));
+                      return;
+                    }
+                    const s = managersFromSalesmen.find(x => String(x.id || x._id) === String(sid));
+                    if (s) {
+                      setFormData(prev => ({ ...prev, name: s.name || '', email: s.email || '', phone: s.phone || '' }));
+                    }
+                  }}
+                  style={styles.input}
+                  required
+                  disabled={managersFromSalesmen.length === 0}
+                >
+                  <option value="">Select Sales Manager</option>
+                  {managersFromSalesmen.map(s => (
+                    <option key={s.id || s._id} value={s.id || s._id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+            );
+          }
           
           if (field === 'sales_man_id' && activeTab === 'dealers') {
             return (
@@ -458,6 +749,8 @@ const AdminManagement = () => {
           
           // Only show sales_manager for salesmen
           if (field === 'sales_manager' && activeTab !== 'salesmen') return null;
+          // Hide 'active' from all create/edit forms; managed via Activate/Deactivate in tables
+          if (field === 'active') return null;
           const fieldType = typeof formTemplates[activeTab][field] === 'number' ? 'number' : 
                            field.includes('email') ? 'email' : 'text';
           
@@ -469,9 +762,18 @@ const AdminManagement = () => {
               <input
                 type={fieldType}
                 value={formData[field] || ''}
-                onChange={(e) => setFormData({...formData, [field]: e.target.value})}
+                onChange={(e) => {
+                  // Clear team when state changes
+                  if (activeTab === 'sales_managers' && field === 'state') {
+                    setTeamDropdownOpen(false);
+                    setTeamSearch('');
+                    setFormData({ ...formData, state: e.target.value, salesmen_ids: [] });
+                  } else {
+                    setFormData({ ...formData, [field]: e.target.value });
+                  }
+                }}
                 style={styles.input}
-                required={field !== 'phone' && field !== 'product_details' && field !== 'sales_manager'}
+                required={!['phone','product_details','sales_manager'].includes(field)}
               />
             </div>
           );
@@ -536,7 +838,15 @@ const AdminManagement = () => {
     smallBtn: { background:'var(--brand-green)', color:'#fff', border:'1px solid var(--brand-green)', borderRadius:'3px', padding:'.35rem .55rem', fontSize:'.55rem', cursor:'pointer', fontWeight:600 },
     smallBtnSecondary: { background:'#6c757d', color:'#fff', border:'1px solid #6c757d', borderRadius:'3px', padding:'.35rem .55rem', fontSize:'.55rem', cursor:'pointer', fontWeight:600 },
     sectionTitle: { fontSize:'.85rem', fontWeight:600, margin:'1rem 0 .5rem', color:'var(--brand-text)' },
-    errorText: { color:'#d83545', background:'#fdecee', border:'1px solid #f7c2c7', padding:'.5rem .65rem', borderRadius:'6px', fontSize:'.72rem' }
+  errorText: { color:'#d83545', background:'#fdecee', border:'1px solid #f7c2c7', padding:'.5rem .65rem', borderRadius:'6px', fontSize:'.72rem' },
+  // Chips and multi-select styles
+  chipsWrap: { display:'flex', gap:'.3rem', flexWrap:'wrap' },
+  chip: { background:'var(--brand-surface-alt)', border:'1px solid var(--brand-border)', borderRadius:'999px', padding:'.15rem .5rem', fontSize:'.65rem', color:'var(--brand-text)' },
+  chipMuted: { background:'#e9f7ef', border:'1px solid #cdeed8', borderRadius:'999px', padding:'.15rem .5rem', fontSize:'.65rem', color:'#128d3b' },
+  multiSelectContainer: { position:'relative' },
+  multiSelectDisplay: { display:'flex', alignItems:'center', justifyContent:'space-between', gap:'.5rem', minHeight:'38px', padding:'.45rem .6rem', border:'1px solid var(--brand-border)', borderRadius:'var(--radius-md)', cursor:'pointer', background:'#fff' },
+  caret: { fontSize:'.6rem', color:'var(--brand-text-soft)' },
+  multiSelectDropdown: { position:'absolute', top:'100%', left:0, right:0, zIndex:60, background:'#fff', border:'1px solid var(--brand-border)', borderRadius:'6px', boxShadow:'0 8px 20px rgba(0,0,0,0.12)', padding:'.5rem', marginTop:'.35rem' }
   };
 
   return (
@@ -557,6 +867,18 @@ const AdminManagement = () => {
           Salesmen
         </button>
         <button 
+          style={{...styles.tab, ...(activeTab === 'sales_managers' ? styles.activeTab : {})}}
+          onClick={() => setActiveTab('sales_managers')}
+        >
+          Sales Managers
+        </button>
+        <button 
+          style={{...styles.tab, ...(activeTab === 'directors' ? styles.activeTab : {})}}
+          onClick={() => setActiveTab('directors')}
+        >
+          Directors
+        </button>
+        <button 
           style={{...styles.tab, ...(activeTab === 'dealers' ? styles.activeTab : {})}}
           onClick={() => setActiveTab('dealers')}
         >
@@ -572,7 +894,10 @@ const AdminManagement = () => {
 
       <div style={styles.content}>
         <button style={styles.createButton} onClick={handleCreate}>
-          Add New {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+          {(() => {
+            const singular = { salesmen: 'Salesman', sales_managers: 'Sales Manager', directors: 'Director', dealers: 'Dealer', products: 'Product' }[activeTab] || pretty(activeTab);
+            return `Add New ${singular}`;
+          })()}
         </button>
         <button
           style={styles.sortButton}
@@ -595,7 +920,7 @@ const AdminManagement = () => {
       {showModal && (
         <div style={styles.modal}>
           <div style={styles.modalContent}>
-            {(() => { const singular = { salesmen: 'Salesman', dealers: 'Dealer', products: 'Product' }[activeTab] || activeTab; return (
+            {(() => { const singular = { salesmen: 'Salesman', sales_managers:'Sales Manager', directors:'Director', dealers: 'Dealer', products: 'Product' }[activeTab] || activeTab; return (
               <h3>{modalType === 'create' ? 'Create' : 'Edit'} {singular}</h3>
             ); })()}
             {renderForm()}
