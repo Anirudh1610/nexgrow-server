@@ -248,7 +248,52 @@ const AdminManagement = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError('');
-    // Duplicate guard
+    // Special merge logic for Sales Managers: if creating and a manager already exists (by email/name),
+    // merge the team into the existing record instead of creating a new one (preserve original state).
+    if (activeTab === 'sales_managers' && modalType === 'create') {
+      const norm = (v) => (v ?? '').toString().trim().toLowerCase();
+      const email = norm(formData.email);
+      const name = norm(formData.name);
+      const phone = norm(formData.phone);
+      const existing = (salesManagers || []).find(x => {
+        const xe = norm(x.email);
+        const xn = norm(x.name);
+        const xp = norm(x.phone);
+        return (email && xe === email) || (phone && xp === phone) || (!email && !phone && name && xn === name);
+      });
+      if (existing) {
+        try {
+          const id = existing.id || existing._id;
+          const exIds = Array.isArray(existing.salesmen_ids) ? existing.salesmen_ids.map(String) : [];
+          const newIds = Array.isArray(formData.salesmen_ids) ? formData.salesmen_ids.map(String) : [];
+          const mergedIds = Array.from(new Set([...exIds, ...newIds]));
+          const { _id, id: rid, __v, ...restExisting } = existing;
+          const putPayload = { ...restExisting, salesmen_ids: mergedIds };
+          // Normalize numeric fields according to template types
+          Object.keys(putPayload).forEach(k => {
+            if (typeof formTemplates[activeTab][k] === 'number' && putPayload[k] !== '' && putPayload[k] !== null) {
+              const num = Number(putPayload[k]);
+              if (!Number.isNaN(num)) putPayload[k] = num;
+            }
+          });
+          const url = `${SERVER_API_URL}/orders/admin/${activeTab}/${id}`;
+          const response = await fetch(url, { method:'PUT', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(putPayload) });
+          if (response.ok) {
+            setShowModal(false);
+            fetchData();
+          } else {
+            const errorText = await response.text();
+            console.error('Merge update failed:', response.status, errorText);
+            setFormError('Save failed. Please try again.');
+          }
+        } catch (err) {
+          console.error('Error merging manager team:', err);
+          setFormError('Unexpected error. Please try again.');
+        }
+        return; // stop normal create flow
+      }
+    }
+    // Duplicate guard (after merge handling)
     if (hasDuplicate()) return;
     try {
       const url = modalType === 'create' 
