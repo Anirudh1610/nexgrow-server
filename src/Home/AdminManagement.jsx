@@ -206,7 +206,17 @@ const AdminManagement = () => {
       return false;
     }
 
-    if (activeTab === 'sales_managers' || activeTab === 'directors') {
+    if (activeTab === 'sales_managers') {
+      // Do not block on email duplicates for Sales Managers
+      const phone = normalize(formData.phone);
+      if (phone && others.some(x => normalize(x.phone) === phone)) {
+        setFormError(`An entry with this phone already exists.`);
+        return true;
+      }
+      return false;
+    }
+
+    if (activeTab === 'directors') {
       const email = normalize(formData.email);
       if (email && others.some(x => normalize(x.email) === email)) {
         setFormError(`An entry with this email already exists.`);
