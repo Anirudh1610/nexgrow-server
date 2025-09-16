@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { SERVER_API_URL } from '../Auth/APIConfig';
-import { signOut, onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../Auth/AuthConfig';
-import { formatINR, formatPercent } from './numberFormat';
+import { formatINR, formatPercent, formatOrderDisplayId, computeDisplaySeqMap } from './numberFormat';
+import AppHeader from '../components/AppHeader';
 
 const Orders = () => {
   const [orders, setOrders] = useState([]);
@@ -35,11 +36,11 @@ const Orders = () => {
           }
           return 0;
         };
-        const withTs = data.map(o => ({ __ts: getTs(o), o }));
-        withTs.sort((a,b)=> b.__ts - a.__ts);
-        // If all timestamps are 0 (no usable data), just reverse original array as a fallback
-        const allZero = withTs.every(x=>x.__ts===0);
-        data = allZero ? data.slice().reverse() : withTs.map(x=>x.o);
+  const withTs = data.map(o => ({ __ts: getTs(o), o }));
+  withTs.sort((a,b)=> b.__ts - a.__ts);
+  // If all timestamps are 0 (no usable data), fallback to reverse so latest IDs end up first
+  const allZero = withTs.every(x=>x.__ts===0);
+  data = allZero ? data.slice().reverse() : withTs.map(x=>x.o);
         setOrders(data);
       } catch (error) {
         console.error('Error fetching orders:', error);
@@ -53,29 +54,22 @@ const Orders = () => {
   }, []);
 
   return (
-    <div className="app-shell" style={{ minHeight: '100vh' }}>
-      <header className="app-header">
-        <div className="app-header__logo" onClick={() => navigate('/home')}>NEXGROW</div>
-        <div className="app-header__actions">
-          <div className="header-nav" style={{ display:'flex', gap:'.5rem', marginRight:'.5rem' }}>
-            <button className="btn secondary" onClick={()=>navigate('/orders')}>Salesman</button>
-            <button className="btn secondary" onClick={()=>navigate('/manager')}>Manager</button>
-            <button className="btn secondary" onClick={()=>navigate('/admin/orders')}>Admin</button>
+    <div className="app-shell">
+      <AppHeader />
+      <main className="page fade-in">
+        <div className="surface-card elevated">
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem'}}>
+            <h1 className="section-title" style={{margin: 0}}>My Orders</h1>
+            <button className="btn" onClick={() => navigate('/order-form')}>Create New Order</button>
           </div>
-          <button className="btn danger" onClick={async () => { await signOut(auth); navigate('/'); }}>Sign Out</button>
-        </div>
-      </header>
-      <main className="page narrow fade-in">
-        <div className="surface-card elevated" style={{ marginBottom: '1.25rem' }}>
-          <h1 className="section-title" style={{ fontSize: '1.4rem' }}>Orders</h1>
           {loading ? (
-            <p style={{ margin: 0 }}>Loading orders...</p>
+            <p>Loading orders...</p>
           ) : orders.length === 0 ? (
-            <p style={{ margin: 0 }}>No orders found.</p>
+            <p>No orders found. <span onClick={() => navigate('/order-form')} style={{color: 'var(--brand-green)', cursor: 'pointer', fontWeight: '600'}}>Create one now.</span></p>
           ) : (
-            <ul className="order-list">
-              {orders.map((order, idx) => {
-                // Compute per-line discounts (similar to admin view)
+            <div className="order-list">
+              {(() => { const seqMap = computeDisplaySeqMap(orders); return orders.map((order, idx) => {
+                // ... (rest of the mapping logic is complex and preserved)
                 const productsArr = Array.isArray(order.products) ? order.products : [];
                 let totalBase = 0; let totalDiscountAmtExact = 0; let hasExplicitLineDiscount = false;
                 let computedLines = productsArr.map(p => {
@@ -121,40 +115,40 @@ const Orders = () => {
                 const effectivePct = totalBase > 0 ? (totalDiscountAmtExact / totalBase) * 100 : 0;
                 const status = order.discount_status || 'n/a';
                 const badgeClass = status === 'approved' ? 'badge success' : status === 'pending' ? 'badge warning' : status === 'rejected' ? 'badge danger' : 'badge';
-                return (
-                  <li key={order._id || order.id || idx} className="order-card">
+        const seq = seqMap[String(order._id || order.id)] || (idx + 1);
+        return (
+                  <div key={order._id || order.id || idx} className="order-card">
                     <header>
-                      <strong style={{ fontSize: '.9rem', letterSpacing: '.5px' }}>{order.order_code ? order.order_code : `Order #${idx + 1}`}</strong>
+          <strong style={{ fontSize: '1rem' }}>{order.order_code || formatOrderDisplayId(order, { seq })}</strong>
                       <span className={badgeClass}>{status.toUpperCase()}</span>
                     </header>
-                    <div style={{ fontSize: '.8rem', color: 'var(--brand-text-soft)', display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
-                      <span><strong style={{ color: 'var(--brand-text)' }}>Salesman:</strong> {order.salesman_name || order.salesman_id || 'N/A'}</span>
-                      <span><strong style={{ color: 'var(--brand-text)' }}>Dealer:</strong> {order.dealer_name || order.dealer_id || 'N/A'}</span>
-                      <span><strong style={{ color: 'var(--brand-text)' }}>State:</strong> {order.state || 'N/A'}</span>
+                    <div style={{ fontSize: '.85rem', color: 'var(--brand-text-soft)', display: 'flex', flexWrap: 'wrap', gap: '1.5rem', margin: '0.5rem 0' }}>
+                      <span><strong>Salesman:</strong> {order.salesman_name || 'N/A'}</span>
+                      <span><strong>Dealer:</strong> {order.dealer_name || 'N/A'}</span>
+                      <span><strong>State:</strong> {order.state || 'N/A'}</span>
                     </div>
-                    {computedLines.length>0 && (
-                      <ul style={{ margin: '0.5rem 0 0 1rem', padding: 0, fontSize: '.75rem', listStyle: 'disc' }}>
+                    {computedLines.length > 0 && (
+                      <ul style={{ margin: '0.75rem 0 0 1rem', padding: 0, fontSize: '.8rem', listStyle: 'disc' }}>
                         {computedLines.map((p, i) => (
-                          <li key={i} style={{ margin: '2px 0' }}>
-                            {p.product_name || p.product_id || 'Product'} - Qty: {formatINR(p.quantity,{decimals:0})} - Base: ₹{formatINR(p.base)}{p.pct>0 && <> - {formatPercent(p.pct,{decimals:2})}% (₹{formatINR(p.lineDiscountAmt)}) → <strong>₹{formatINR(p.discounted)}</strong></>}
+                          <li key={i} style={{ margin: '4px 0' }}>
+                            {p.product_name || 'Product'} - Qty: {formatINR(p.quantity,{decimals:0})} - Base: {formatINR(p.base)}{p.pct>0 && <> - {formatPercent(p.pct,{decimals:1})}% → <strong>{formatINR(p.discounted)}</strong></>}
                           </li>
                         ))}
                       </ul>
                     )}
-                    <div className="order-metrics" style={{ marginTop: '.85rem' }}>
-                      <span>Total: ₹{formatINR(totalBase)}</span>
-                      <span>Discount Amt: ₹{formatINR(totalDiscountAmtExact)}</span>
-                      <span>After Discount: ₹{formatINR(totalAfter)}</span>
-                      <span>Effective %: {formatPercent(effectivePct,{decimals:2})}%</span>
+                    <div className="order-metrics">
+                      <span>Total: {formatINR(totalBase)}</span>
+                      <span>Discount: {formatINR(totalDiscountAmtExact)}</span>
+                      <span>Final: {formatINR(totalAfter)}</span>
+                      <span>Effective: {formatPercent(effectivePct,{decimals:1})}%</span>
                     </div>
-                  </li>
+                  </div>
                 );
-              })}
-            </ul>
+              }); })()}
+            </div>
           )}
-          <div style={{ marginTop: '1.5rem', display: 'flex', gap: '.75rem' }}>
-            <button className="btn" onClick={() => navigate('/order-form')}>New Order</button>
-            <button className="btn secondary" onClick={() => navigate('/home')}>Back</button>
+          <div style={{ marginTop: '1.5rem' }}>
+            <button className="btn secondary" onClick={() => navigate('/home')}>Back to Home</button>
           </div>
         </div>
       </main>

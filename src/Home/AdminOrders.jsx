@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { SERVER_API_URL } from '../Auth/APIConfig';
-import { signOut } from 'firebase/auth';
-import { auth } from '../Auth/AuthConfig';
+import AppHeader from '../components/AppHeader';
 import { useNavigate } from 'react-router-dom';
-import { formatINR, formatPercent } from './numberFormat';
+import { formatINR, formatPercent, formatOrderDisplayId, computeDisplaySeqMap } from './numberFormat';
 
 const AdminOrders = () => {
   const [orders, setOrders] = useState([]);
@@ -16,7 +15,21 @@ const AdminOrders = () => {
       setLoading(true);
       try {
         const res = await axios.get(`${SERVER_API_URL}/orders/admin/orders`);
-        setOrders(res.data || []);
+        let data = res.data || [];
+        const getTs = (o) => {
+          const raw = o.created_at || o.createdAt || o.updated_at || o.date || o.timestamp || null;
+          const t = raw ? new Date(raw).getTime() : 0;
+          if (t && !isNaN(t)) return t;
+          if (o._id && typeof o._id === 'string' && o._id.length >= 8) {
+            try { return parseInt(o._id.substring(0,8),16) * 1000; } catch { return 0; }
+          }
+          return 0;
+        };
+        const withTs = data.map(o => ({ __ts: getTs(o), o }));
+        withTs.sort((a,b)=> b.__ts - a.__ts);
+        const allZero = withTs.every(x=>x.__ts===0);
+        data = allZero ? data.slice().reverse() : withTs.map(x=>x.o);
+        setOrders(data);
       } catch {
         setOrders([]);
       }
@@ -27,27 +40,15 @@ const AdminOrders = () => {
 
   return (
     <div className="app-shell" style={{ minHeight: '100vh' }}>
-      <header className="app-header">
-        <div className="app-header__logo" onClick={() => navigate('/home')}>
-          NEXGROW
-        </div>
-        <div className="app-header__actions">
+      <AppHeader
+        centerContent={
           <div className="header-nav" style={{ display:'flex', gap:'.5rem', marginRight:'.5rem' }}>
             <button className="btn secondary" onClick={()=>navigate('/orders')}>Salesman</button>
             <button className="btn secondary" onClick={()=>navigate('/manager')}>Manager</button>
             <button className="btn secondary" onClick={()=>navigate('/admin/orders')}>Admin</button>
           </div>
-          <button
-            className="btn danger"
-            onClick={async () => {
-              await signOut(auth);
-              navigate('/');
-            }}
-          >
-            Sign Out
-          </button>
-        </div>
-      </header>
+        }
+      />
       <main className="page fade-in">
         <h1 className="section-title" style={{ fontSize: '1.5rem' }}>
           All Orders
@@ -59,7 +60,9 @@ const AdminOrders = () => {
             <p>No orders found.</p>
           ) : (
             <ul className="order-list">
-              {orders.map((order) => {
+              {(() => {
+                const seqMap = computeDisplaySeqMap(orders);
+                return orders.map((order) => {
                 const total = order.total_price || 0;
                 const discountPct = order.discount || 0;
                 const discounted =
@@ -76,6 +79,7 @@ const AdminOrders = () => {
                     : status === 'rejected'
                     ? 'badge danger'
                     : 'badge';
+                  const seq = seqMap[String(order._id || order.id)] || 1;
                 return (
                   <li key={order._id || order.id} className="order-card">
                     <header>
@@ -85,7 +89,7 @@ const AdminOrders = () => {
                           letterSpacing: '.5px',
                         }}
                       >
-                        {order.order_code ? order.order_code : `Order: ${order._id || order.id}`}
+                        {order.order_code ? order.order_code : formatOrderDisplayId(order, { seq })}
                       </strong>
                       <span className={badgeClass}>
                         {status.toUpperCase()}
@@ -146,7 +150,8 @@ const AdminOrders = () => {
                     </div>
                   </li>
                 );
-              })}
+                });
+              })()}
             </ul>
           )}
           <div style={{ marginTop: '1.5rem' }}>

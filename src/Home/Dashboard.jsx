@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { SERVER_API_URL } from '../Auth/APIConfig';
 import { useNavigate } from 'react-router-dom';
-import { signOut } from 'firebase/auth';
-import { auth } from '../Auth/AuthConfig';
+import AppHeader from '../components/AppHeader';
 import { formatINR, formatPercent } from './numberFormat';
+import '../components/UITheme.css';
 
 const Dashboard = () => {
 	const [orders, setOrders] = useState([]);
@@ -25,9 +25,7 @@ const Dashboard = () => {
 		fetchOrders();
 	}, []);
 
-	// Calculate total sales amount
 	const totalSales = orders.reduce((sum, order) => {
-		// If order has total_price, use it; else sum product prices
 		if (order.total_price) return sum + order.total_price;
 		if (order.products && Array.isArray(order.products)) {
 			return sum + order.products.reduce((pSum, p) => pSum + (p.price || 0), 0);
@@ -44,65 +42,76 @@ const Dashboard = () => {
 	const approvedDiscounts = orders.filter(o => o.discount_status === 'approved').length;
 
 	return (
-		<div className="app-shell" style={{ minHeight: '100vh' }}>
-			<header className="app-header">
-				<div className="app-header__logo" onClick={() => navigate('/home')}>NEXGROW</div>
-				<div className="app-header__actions">
-					<button className="btn danger" onClick={async () => { await signOut(auth); navigate('/'); }}>Sign Out</button>
-				</div>
-			</header>
+		<div className="app-shell">
+			<AppHeader />
 			<main className="page fade-in">
-				<h1 className="section-title" style={{ fontSize: '1.55rem' }}>Dashboard</h1>
+				<div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem'}}>
+                    <h1 className="section-title" style={{margin: 0}}>Dashboard</h1>
+                    <button className="btn secondary" onClick={() => navigate('/home')}>Back to Home</button>
+                </div>
+
 				<div className="stat-grid">
-					<div className="stat">
-						<h4>Total Sales (₹)</h4>
-						<div className="value">₹{formatINR(totalSales)}</div>
+					<div className="surface-card stat">
+						<h4>Total Sales</h4>
+						<div className="value">{formatINR(totalSales)}</div>
 					</div>
-					<div className="stat">
-						<h4>Discount Savings (₹)</h4>
-						<div className="value">₹{formatINR(discountSavings)}</div>
+					<div className="surface-card stat">
+						<h4>Discount Savings</h4>
+						<div className="value">{formatINR(discountSavings)}</div>
 					</div>
-					<div className="stat">
+					<div className="surface-card stat">
 						<h4>Approved Discounts</h4>
 						<div className="value">{approvedDiscounts}</div>
 					</div>
-					<div className="stat">
+					<div className="surface-card stat">
 						<h4>Total Orders</h4>
 						<div className="value">{orders.length}</div>
 					</div>
 				</div>
+
 				<div className="surface-card elevated" style={{ marginTop: '1.5rem' }}>
-					<h2 className="section-title" style={{ fontSize: '1rem' }}>Recent Orders</h2>
+					<h2 className="section-title" style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>Recent Orders</h2>
 					{loading ? <p>Loading orders...</p> : orders.length === 0 ? <p>No orders found.</p> : (
-						<ul className="order-list">
-							{orders.slice(0, 8).map((order, i) => {
-								const total = order.total_price || 0;
-								const discount = order.discount || 0;
-								const discounted = order.discounted_total != null ? order.discounted_total : total - (total * discount / 100);
-								return (
-									<li key={order._id || order.id || i} className="order-card">
-										<header>
-											<strong style={{ fontSize: '.75rem' }}>Order {order._id || order.id || (i + 1)}</strong>
-											<span className={order.discount_status === 'approved' ? 'badge success' : order.discount_status === 'pending' ? 'badge warning' : order.discount_status === 'rejected' ? 'badge danger' : 'badge'}>{(order.discount_status || 'N/A').toUpperCase()}</span>
-										</header>
-										<div style={{ fontSize: '.7rem', color: 'var(--brand-text-soft)', display: 'flex', flexWrap: 'wrap', gap: '.65rem' }}>
-											<span><strong style={{ color: 'var(--brand-text)' }}>State:</strong> {order.state || 'N/A'}</span>
-											<span><strong style={{ color: 'var(--brand-text)' }}>Salesman:</strong> {order.salesman_name || order.salesman_id || 'N/A'}</span>
-											<span><strong style={{ color: 'var(--brand-text)' }}>Dealer:</strong> {order.dealer_name || order.dealer_id || 'N/A'}</span>
-										</div>
-										<div className="order-metrics" style={{ marginTop: '.55rem' }}>
-											<span>Total: ₹{formatINR(total)}</span>
-											<span>Discount %: {formatPercent(discount,{decimals:2})}%</span>
-											<span>After: ₹{formatINR(discounted)}</span>
-										</div>
-									</li>
-								);
-							})}
-						</ul>
+						<div className="table-container">
+                            <table className="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Order ID</th>
+                                        <th>State</th>
+                                        <th>Salesman</th>
+                                        <th>Dealer</th>
+                                        <th>Total</th>
+                                        <th>Discount</th>
+                                        <th>Final Price</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {orders.slice(0, 8).map((order, i) => {
+                                        const total = order.total_price || 0;
+                                        const discount = order.discount || 0;
+                                        const discounted = order.discounted_total != null ? order.discounted_total : total - (total * discount / 100);
+                                        return (
+                                            <tr key={order._id || order.id || i}>
+                                                <td>{order._id || order.id || (i + 1)}</td>
+                                                <td>{order.state || 'N/A'}</td>
+                                                <td>{order.salesman_name || order.salesman_id || 'N/A'}</td>
+                                                <td>{order.dealer_name || order.dealer_id || 'N/A'}</td>
+                                                <td>{formatINR(total)}</td>
+                                                <td>{formatPercent(discount, { decimals: 2 })}%</td>
+                                                <td>{formatINR(discounted)}</td>
+                                                <td>
+                                                    <span className={`badge ${order.discount_status === 'approved' ? 'success' : order.discount_status === 'pending' ? 'warning' : order.discount_status === 'rejected' ? 'danger' : ''}`}>
+                                                        {(order.discount_status || 'N/A').toUpperCase()}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
 					)}
-					<div style={{ marginTop: '1.35rem' }}>
-						<button className="btn secondary" onClick={() => navigate('/home')}>Back</button>
-					</div>
 				</div>
 			</main>
 		</div>

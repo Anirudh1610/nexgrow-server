@@ -62,9 +62,10 @@ function App() {
         justifyContent: 'center', 
         alignItems: 'center', 
         minHeight: '100vh', 
-        background: 'var(--brand-gradient)',
-        color: '#ffffff',
-        fontSize: '1.2rem'
+        backgroundColor: 'var(--brand-bg)',
+        color: 'var(--brand-text)',
+        fontSize: '1.2rem',
+        fontFamily: "'Inter', sans-serif"
       }}>
         Loading...
       </div>

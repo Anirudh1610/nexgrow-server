@@ -23,10 +23,10 @@ const Landing = () => {
   };
 
   return (
-    <div className="app-shell" style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--brand-gradient)'}}>
-      <div className="surface-card elevated" style={{padding:'2.25rem 2.5rem',borderRadius:'18px',textAlign:'center',minWidth:'300px'}}>
-        <h1 style={{margin:'0 0 1.5rem',fontSize:'1.75rem',letterSpacing:'.5px',color:'var(--brand-text)'}}>NEXGROW</h1>
-        <button className="btn" disabled={loading} onClick={handleSignIn} style={{width:'100%'}}>
+    <div className="app-shell" style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center'}}>
+      <div className="surface-card elevated" style={{padding:'2.5rem 3rem',borderRadius:'var(--radius-xl)',textAlign:'center',minWidth:'320px'}}>
+        <h1 style={{margin:'0 0 2rem',fontSize:'2rem',letterSpacing:'1px',color:'var(--brand-green-dark)'}}>NEXGROW</h1>
+        <button className="btn" disabled={loading} onClick={handleSignIn} style={{width:'100%', padding: '1rem'}}>
           {loading ? 'Signing In…' : 'Sign In with Google'}
         </button>
       </div>

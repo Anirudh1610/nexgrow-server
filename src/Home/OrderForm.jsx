@@ -14,6 +14,7 @@ const OrderForm = ({ onSignOut }) => {
   const [products, setProducts] = useState([]);
   const [loadingSalesmen, setLoadingSalesmen] = useState(false);
   const [loadingDealers, setLoadingDealers] = useState(false);
+  const [me, setMe] = useState(null); // holds role and profile
   // loadingProducts removed as it's not used in the UI
 
   // Multiple products state
@@ -37,7 +38,8 @@ const OrderForm = ({ onSignOut }) => {
         setUser(currentUser);
         // Persist minimal auth reference (uid) for soft refresh continuity
         try { localStorage.setItem('nexgrow_uid', currentUser.uid); } catch {}
-        fetchProducts();
+  fetchProducts();
+  fetchMe(currentUser);
       } else {
         // If no firebase user, attempt soft restore or redirect
         const storedUid = localStorage.getItem('nexgrow_uid');
@@ -67,6 +69,18 @@ const OrderForm = ({ onSignOut }) => {
     }
   };
 
+  const fetchMe = async (fbUser) => {
+    try {
+      const params = new URLSearchParams();
+      if (fbUser?.uid) params.append('uid', fbUser.uid);
+      if (fbUser?.email) params.append('email', fbUser.email);
+      const response = await axios.get(`${SERVER_API_URL}/orders/me?${params.toString()}`);
+      setMe(response.data || null);
+    } catch (e) {
+      setMe(null);
+    }
+  };
+
   const fetchDealers = async (salesmanId) => {
     if (!salesmanId) {
       setDealers([]);
@@ -83,6 +97,20 @@ const OrderForm = ({ onSignOut }) => {
     } finally {
       setLoadingDealers(false);
     }
+  };
+
+  // For sales managers: fetch all dealers across team
+  const fetchTeamDealers = async () => {
+  setLoadingDealers(true);
+  try {
+      const params = new URLSearchParams();
+      if (user?.uid) params.append('uid', user.uid);
+      if (user?.email) params.append('email', user.email);
+      const response = await axios.get(`${SERVER_API_URL}/orders/manager/team/dealers?${params.toString()}`);
+      setDealers(response.data || []);
+  } catch (e) {
+      setDealers([]);
+  } finally { setLoadingDealers(false); }
   };
 
   const fetchProducts = async () => {
@@ -178,9 +206,23 @@ const OrderForm = ({ onSignOut }) => {
         ...prev,
         dealer: ''
       }));
-      fetchDealers(value);
+      // Manager logic: selecting self shows team dealers; else filter to selected salesman
+      if (me?.role === 'sales_manager') {
+        const isSelf = value === '__self__' || (me?._id && String(value) === String(me._id));
+        if (isSelf) {
+          fetchTeamDealers();
+        } else if (value) {
+          fetchDealers(value);
+        } else {
+          setDealers([]);
+        }
+      } else {
+        fetchDealers(value);
+      }
     }
   };
+
+  // Removed preloading team dealers on state-only; managers must pick themselves to see team dealers
 
   // Handle changes for product entries
   const handleProductEntryChange = (idx, field, value) => {
@@ -239,7 +281,7 @@ const OrderForm = ({ onSignOut }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const { state, salesman, dealer } = formData;
-    if (!state || !salesman || !dealer) {
+  if (!state || !salesman || !dealer) {
       alert('Please fill in all fields.');
       return;
     }
@@ -262,9 +304,10 @@ const OrderForm = ({ onSignOut }) => {
       discount_pct: Number(entry.discount) || 0,
       discounted_price: (()=>{ const base=entry.priceDetails.total_price; const pct=Number(entry.discount)||0; return base - (base*pct/100); })()
     }));
+    const resolvedSalesmanId = (me?.role === 'sales_manager' && formData.salesman === '__self__') ? (me?._id || '') : salesman;
     const orderData = {
       state,
-      salesman_id: salesman,
+      salesman_id: resolvedSalesmanId,
       dealer_id: dealer,
       products: orderProducts,
       total_price: totalPrice,
@@ -293,7 +336,9 @@ const OrderForm = ({ onSignOut }) => {
       });
       setOrderSummary({
         state,
-        salesman: (salesmen.find(s => (s._id || s.id) === salesman)?.name) || salesman,
+        salesman: (me?.role === 'sales_manager' && salesman === '__self__')
+          ? (me?.name || 'Me (All Team Dealers)')
+          : ((salesmen.find(s => (s._id || s.id) === salesman)?.name) || salesman),
         dealer: (dealers.find(d => (d._id || d.id) === dealer)?.name) || dealer,
         discount: Number(aggregateDiscountPct.toFixed(2)),
         totalPrice,
@@ -468,48 +513,63 @@ const OrderForm = ({ onSignOut }) => {
   };
 
   if (!user) {
-    return <div className="app-shell" style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center'}}><div className="surface-card elevated" style={{padding:'2rem 2.25rem',textAlign:'center'}}><p style={{margin:0,fontWeight:600,letterSpacing:'.5px'}}>Authenticating...</p></div></div>;
+    return (
+      <div className="app-shell" style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <div className="surface-card elevated" style={{padding:'2rem 2.25rem',textAlign:'center'}}>
+          <p style={{margin:0,fontWeight:600,letterSpacing:'.5px'}}>Authenticating...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="app-shell" style={{minHeight:'100vh'}}>
+    <div className="app-shell">
       <header className="app-header">
         <div className="app-header__logo" onClick={()=>navigate('/home')}>NEXGROW</div>
         <div className="app-header__actions">
-          <span style={{fontSize:'.7rem',letterSpacing:'.5px',opacity:.85}}>{user.displayName || user.email}</span>
+          <span style={{fontSize:'.8rem', fontWeight: 500}}>{user.displayName || user.email}</span>
           <button className="btn danger" onClick={async()=>{ await signOut(auth); try { localStorage.removeItem('nexgrow_uid'); } catch {}; navigate('/'); }}>Sign Out</button>
         </div>
       </header>
       <main className="page narrow fade-in">
         <div className="surface-card elevated" style={{marginBottom:'1.5rem'}}>
-          <h1 className="section-title" style={{fontSize:'1.4rem'}}>Create Order</h1>
-          <p style={{margin:'0 0 1.25rem',fontSize:'.8rem',color:'var(--brand-text-soft)'}}>Apply discounts per product line. Any discount &gt; 0% requires admin approval.</p>
-          <form onSubmit={handleSubmit} className="form-grid" style={{gap:'1.25rem'}}>
+          <h1 className="section-title">Create New Order</h1>
+          <p style={{margin:'-0.5rem 0 1.5rem',fontSize:'.9rem',color:'var(--brand-text-soft)'}}>
+            Apply discounts per product line. Any discount {'>'} 0% requires admin approval.
+          </p>
+          <form onSubmit={handleSubmit} className="form-grid" style={{gap:'1.5rem'}}>
             <div className="form-row">
-              <label>State</label>
-              <select name="state" value={formData.state} onChange={handleInputChange} className="input" required>
+              <label htmlFor="state">State</label>
+              <select id="state" name="state" value={formData.state} onChange={handleInputChange} className="input" required>
                 <option value="">Choose a state</option>
-                <option value="AP">AP</option><option value="TG">TG</option><option value="TN">TN</option><option value="UP">UP</option><option value="WB">WB</option>
+                <option value="AP">Andhra Pradesh</option>
+                <option value="TG">Telangana</option>
+                <option value="TN">Tamil Nadu</option>
+                <option value="UP">Uttar Pradesh</option>
+                <option value="WB">West Bengal</option>
               </select>
             </div>
             <div className="form-row">
-              <label>Salesman</label>
-              <select name="salesman" value={formData.salesman} onChange={handleInputChange} className="input" required disabled={!formData.state || loadingSalesmen}>
-                <option value="">{!formData.state ? 'Select a state first' : loadingSalesmen ? 'Loading salesmen...' : 'Choose a salesman'}</option>
+              <label htmlFor="salesman">Salesman</label>
+              <select id="salesman" name="salesman" value={formData.salesman} onChange={handleInputChange} className="input" disabled={!formData.state || loadingSalesmen} required>
+                <option value="">{!formData.state ? 'Select a state first' : loadingSalesmen ? 'Loading salesmen...' : (me?.role === 'sales_manager' ? 'Choose yourself for all team dealers' : 'Choose a salesman')}</option>
+                {me?.role === 'sales_manager' && (
+                  <option value="__self__">{me?.name ? `${me.name} (All Team Dealers)` : 'Me (All Team Dealers)'}</option>
+                )}
                 {Array.isArray(salesmen) && salesmen.map(s => (<option key={s._id || s.id} value={s._id || s.id}>{s.name}</option>))}
               </select>
             </div>
             <div className="form-row">
-              <label>Dealer</label>
-              <select name="dealer" value={formData.dealer} onChange={handleInputChange} className="input" required disabled={!formData.salesman || loadingDealers}>
-                <option value="">{!formData.salesman ? 'Select a salesman first' : loadingDealers ? 'Loading dealers...' : 'Choose a dealer'}</option>
+              <label htmlFor="dealer">Dealer</label>
+              <select id="dealer" name="dealer" value={formData.dealer} onChange={handleInputChange} className="input" required disabled={!formData.salesman || loadingDealers}>
+                <option value="">{!formData.salesman ? 'Select a salesman first' : (loadingDealers ? 'Loading dealers...' : 'Choose a dealer')}</option>
                 {Array.isArray(dealers) && dealers.map(d => (<option key={d._id || d.id} value={d._id || d.id}>{d.name}</option>))}
               </select>
             </div>
-            {/* Removed global discount field */}
+            
             <div className="form-row" style={{gridColumn:'1 / -1'}}>
               <label style={{marginBottom:'.25rem'}}>Products</label>
-              <div className="stack-md" style={{marginTop:'.25rem'}}>
+              <div className="stack-md" style={{marginTop:'.5rem', display: 'grid', gap: '1rem'}}>
                 {productEntries.map((entry, idx)=> {
                   const base = entry.priceDetails?.total_price || 0;
                   const pct = Number(entry.discount) || 0;
@@ -517,19 +577,19 @@ const OrderForm = ({ onSignOut }) => {
                   const after = base - lineDiscountAmt;
                   const selectedProduct = (products || []).find(p => (p._id || p.id) === entry.product) || {};
                   return (
-                  <div key={idx} className="surface-card" style={{padding:'1rem 1.1rem 1.15rem',boxShadow:'none',border:'1px solid var(--brand-border)'}}>
-                    <div className="form-grid" style={{gap:'.9rem'}}>
+                  <div key={idx} className="surface-card" style={{padding:'1.25rem', boxShadow:'var(--brand-shadow-md)', border: '1px solid var(--brand-border)'}}>
+                    <div className="form-grid" style={{gap:'1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))'}}>
                       <div className="form-row">
-                        <label>Product</label>
-                        <select value={entry.product} onChange={e=>handleProductEntryChange(idx,'product',e.target.value)} className="input" required>
+                        <label htmlFor={`product-${idx}`}>Product</label>
+                        <select id={`product-${idx}`} value={entry.product} onChange={e=>handleProductEntryChange(idx,'product',e.target.value)} className="input" required>
                           <option value="">Choose product</option>
                           {products.map(p=>(<option key={p._id || p.id} value={p._id || p.id}>{p.name}</option>))}
                         </select>
                       </div>
                       <div className="form-row">
-                        <label>Size</label>
-                        <select value={entry.productSize} onChange={e=>handleProductEntryChange(idx,'productSize',e.target.value)} className="input" required disabled={!entry.product || entry.loadingPackingSizes}>
-                          <option value="">{!entry.product ? 'Select product first' : entry.loadingPackingSizes ? 'Loading sizes...' : 'Choose size'}</option>
+                        <label htmlFor={`productSize-${idx}`}>Size</label>
+                        <select id={`productSize-${idx}`} value={entry.productSize} onChange={e=>handleProductEntryChange(idx,'productSize',e.target.value)} className="input" required disabled={!entry.product || entry.loadingPackingSizes}>
+                          <option value="">{!entry.product ? 'Select product' : entry.loadingPackingSizes ? 'Loading...' : 'Choose size'}</option>
                           {entry.packingSizes.map(p=> {
                             const packingText = (p.packing_size || p.size || p.name || '').toString();
                             const cat = (selectedProduct.category || '').toString();
@@ -549,64 +609,66 @@ const OrderForm = ({ onSignOut }) => {
                         </select>
                       </div>
                       <div className="form-row">
-                        <label>Quantity</label>
-                        <input type="number" min="1" value={entry.quantity || ''} onChange={e=>handleProductEntryChange(idx,'quantity',e.target.value)} className="input" placeholder="Qty" required />
+                        <label htmlFor={`quantity-${idx}`}>Quantity</label>
+                        <input id={`quantity-${idx}`} type="number" min="1" value={entry.quantity || ''} onChange={e=>handleProductEntryChange(idx,'quantity',e.target.value)} className="input" placeholder="Qty" required />
                       </div>
                       <div className="form-row">
-                        <label>Discount %</label>
-                        <input type="number" min="0" max="30" step="0.1" value={entry.discount === '' ? '' : entry.discount} onChange={e=>handleProductEntryChange(idx,'discount',e.target.value)} className="input" placeholder="0 - 30%" />
+                        <label htmlFor={`discount-${idx}`}>Discount %</label>
+                        <input id={`discount-${idx}`} type="number" min="0" max="30" step="0.1" value={entry.discount === '' ? '' : entry.discount} onChange={e=>handleProductEntryChange(idx,'discount',e.target.value)} className="input" placeholder="0-30%" />
                       </div>
                     </div>
                     {entry.priceDetails && (
-                      <div style={{marginTop:'.6rem',fontSize:'.65rem',fontWeight:600,color:'var(--brand-text)'}}>Line: ₹{formatINR(base)}{pct>0 && <> - {pct}% (₹{formatINR(lineDiscountAmt)}) → <span style={{color:'#0f732f'}}>₹{formatINR(after)}</span></>}</div>
+                      <div style={{marginTop:'.75rem',fontSize:'.8rem',fontWeight:600,color:'var(--brand-text)'}}>
+                        Line Total: {formatINR(base)}{pct>0 && <span style={{color: '#b91c1c'}}> - {pct}% ({formatINR(lineDiscountAmt)})</span>} → <span style={{color:'var(--brand-green-dark)', fontWeight: 700}}>{formatINR(after)}</span>
+                      </div>
                     )}
-                    <div style={{marginTop:'.75rem',display:'flex',gap:'.5rem'}}>
+                    <div style={{marginTop:'1rem',display:'flex',gap:'.75rem'}}>
                       {productEntries.length > 1 && (
-                        <button type="button" className="btn danger" onClick={()=>handleRemoveProductEntry(idx)} style={{fontSize:'.65rem'}}>Remove</button>
+                        <button type="button" className="btn danger" onClick={()=>handleRemoveProductEntry(idx)}>Remove</button>
                       )}
                       {idx === productEntries.length -1 && (
-                        <button type="button" className="btn secondary" onClick={handleAddProductEntry} style={{fontSize:'.65rem'}}>Add Another</button>
+                        <button type="button" className="btn secondary" onClick={handleAddProductEntry}>Add Another Product</button>
                       )}
                     </div>
                   </div>
                 )})}
               </div>
             </div>
-            <div className="surface-card" style={{gridColumn:'1 / -1',display:'flex',flexWrap:'wrap',gap:'1rem',alignItems:'center',padding:'1rem 1.1rem'}}>
-              <div style={{fontSize:'.75rem',fontWeight:600,color:'var(--brand-text)'}}>Total Before Discount: ₹{formatINR(totalPrice)}</div>
-              {anyDiscount && <div style={{fontSize:'.75rem',fontWeight:600,color:'#b34700'}}>Discount Amt: ₹{formatINR(totalDiscountAmount)}</div>}
-              {anyDiscount && <div style={{fontSize:'.75rem',fontWeight:600,color:'#0f732f'}}>After Discount: ₹{formatINR(discountedTotal)}</div>}
+            <div className="surface-card" style={{gridColumn:'1 / -1',display:'flex',flexWrap:'wrap',gap:'1rem',alignItems:'center',padding:'1.25rem', background: 'var(--brand-surface-alt)'}}>
+              <div style={{fontSize:'.9rem',fontWeight:600,color:'var(--brand-text-soft)'}}>Total Before Discount: <span style={{color: 'var(--brand-text)', fontWeight: 700}}>{formatINR(totalPrice)}</span></div>
+              {anyDiscount && <div style={{fontSize:'.9rem',fontWeight:600,color:'#b91c1c'}}>Total Discount: {formatINR(totalDiscountAmount)}</div>}
+              {anyDiscount && <div style={{fontSize:'1.1rem',fontWeight:700,color:'var(--brand-green-dark)'}}>Grand Total: {formatINR(discountedTotal)}</div>}
             </div>
             <div style={{gridColumn:'1 / -1',display:'flex',gap:'.75rem',marginTop:'.5rem'}}>
-              <button type="submit" className="btn" style={{flex:'0 0 auto'}}>Submit Order</button>
-              <button type="button" className="btn outline" onClick={()=>navigate('/orders')}>View Orders</button>
-              <button type="button" className="btn secondary" onClick={()=>navigate('/home')}>Back</button>
+              <button type="submit" className="btn" style={{flex: 1}}>Submit Order</button>
+              <button type="button" className="btn outline" onClick={()=>navigate('/orders')}>View My Orders</button>
+              <button type="button" className="btn secondary" onClick={()=>navigate('/home')}>Back to Home</button>
             </div>
           </form>
         </div>
         {orderSummary && (
           <div className="modal-backdrop" onClick={handleCloseSummary}>
             <div className="modal-panel" onClick={e=>e.stopPropagation()}>
-              <h2 className="section-title" style={{fontSize:'1.25rem'}}>Order Summary</h2>
-              <div style={{display:'grid',rowGap:6,fontSize:'.75rem',marginBottom:'1rem'}}>
+              <h2 className="section-title">Order Submitted Successfully!</h2>
+              <div style={{display:'grid', rowGap: 8, fontSize:'.9rem', marginBottom:'1.5rem', background: 'var(--brand-surface-alt)', padding: '1rem', borderRadius: 'var(--radius-md)'}}>
                 <span><strong>State:</strong> {orderSummary.state}</span>
                 <span><strong>Salesman:</strong> {orderSummary.salesman}</span>
                 <span><strong>Dealer:</strong> {orderSummary.dealer}</span>
-                <span><strong>Status:</strong> {orderSummary.discountStatus}</span>
-                <span><strong>Aggregate Discount %:</strong> {orderSummary.discount}</span>
+                <span><strong>Status:</strong> <span style={{fontWeight: 'bold', color: orderSummary.discountStatus === 'pending' ? '#f59e0b' : 'var(--brand-green-dark)'}}>{orderSummary.discountStatus}</span></span>
+                <span><strong>Aggregate Discount:</strong> {orderSummary.discount}%</span>
               </div>
-              <div style={{marginBottom:'1rem'}}>
-                <strong style={{fontSize:'.7rem',letterSpacing:'.5px'}}>Products</strong>
-                <ul style={{margin:'4px 0 0 18px',padding:0,fontSize:'.7rem'}}>
+              <div style={{marginBottom:'1.5rem'}}>
+                <strong style={{fontSize:'.9rem'}}>Products Ordered</strong>
+                <ul style={{margin:'8px 0 0', paddingLeft: '20px', fontSize:'.85rem', listStyle: 'disc'}}>
                   {orderSummary.products.map((p,i)=>(
-                    <li key={i} style={{margin:'2px 0'}}>{p.name}{p.packing?` (${p.packing})`:''} - Qty: {p.quantity} @ ₹{formatINR(p.unitPrice)} = ₹{formatINR(p.lineTotal)}{p.discountPct>0 && <> - {p.discountPct}% → <strong>₹{formatINR(p.discountedLineTotal)}</strong></>}</li>
+                    <li key={i} style={{marginBottom: '8px'}}>{p.name}{p.packing?` (${p.packing})`:''} - Qty: {p.quantity} @ {formatINR(p.unitPrice)} = {formatINR(p.lineTotal)}{p.discountPct>0 && <> - {p.discountPct}% → <strong>{formatINR(p.discountedLineTotal)}</strong></>}</li>
                   ))}
                 </ul>
               </div>
-              <div style={{fontSize:'.75rem',fontWeight:600,display:'grid',rowGap:4}}>
-                <span>Total Before Discount: ₹{formatINR(orderSummary.totalPrice)}</span>
-                {orderSummary.totalDiscountAmount>0 && <span>Total Discount: -₹{formatINR(orderSummary.totalDiscountAmount)}</span>}
-                <span>Grand Total: ₹{formatINR(orderSummary.discountedTotal)}</span>
+              <div style={{fontSize:'1rem',fontWeight:600,display:'grid',rowGap:6, background: 'var(--brand-surface-alt)', padding: '1rem', borderRadius: 'var(--radius-md)'}}>
+                <span>Total Before Discount: {formatINR(orderSummary.totalPrice)}</span>
+                {orderSummary.totalDiscountAmount>0 && <span style={{color: '#b91c1c'}}>Total Discount: -{formatINR(orderSummary.totalDiscountAmount)}</span>}
+                <span style={{fontSize: '1.1rem', fontWeight: 700, color: 'var(--brand-green-dark)'}}>Grand Total: {formatINR(orderSummary.discountedTotal)}</span>
               </div>
               <div className="modal-actions">
                 <button className="btn" onClick={handleCloseSummary}>Close</button>

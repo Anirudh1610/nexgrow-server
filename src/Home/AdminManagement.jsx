@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SERVER_API_URL } from '../Auth/APIConfig';
 import { formatINR } from './numberFormat';
+import AppHeader from '../components/AppHeader';
 
 const AdminManagement = () => {
   const navigate = useNavigate();
@@ -906,10 +907,7 @@ const AdminManagement = () => {
 
   return (
     <div style={styles.container}>
-      <button style={styles.backButton} onClick={() => navigate('/home')}>
-        ← Back to Home
-      </button>
-      
+      <AppHeader showUser={false} />
       <div style={styles.header}>
         <h1 style={styles.title}>Admin Management</h1>
       </div>

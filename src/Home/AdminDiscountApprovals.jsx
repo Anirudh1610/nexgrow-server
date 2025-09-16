@@ -1,55 +1,96 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { SERVER_API_URL } from '../Auth/APIConfig';
-import { signOut } from 'firebase/auth';
-import { auth } from '../Auth/AuthConfig';
+import AppHeader from '../components/AppHeader';
 import { useNavigate } from 'react-router-dom';
-import { formatINR, formatPercent } from './numberFormat';
+import { SERVER_API_URL } from '../Auth/APIConfig';
+import { formatINR, formatPercent, formatOrderDisplayId, computeDisplaySeqMap } from './numberFormat';
+import '../components/UITheme.css';
+
 
 const AdminDiscountApprovals = () => {
+  const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [salesmanMap, setSalesmanMap] = useState({});
   const [dealerMap, setDealerMap] = useState({});
   const [productMap, setProductMap] = useState({});
-  const navigate = useNavigate();
 
-  const fetchApprovals = async () => {
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
     setLoading(true);
     try {
-      const [approvalsRes, salesmenRes, dealersRes, productsRes] = await Promise.all([
-        axios.get(`${SERVER_API_URL}/orders/admin/discount-approvals`),
-        axios.get(`${SERVER_API_URL}/orders/admin/salesmen`).catch(()=>({data:[]})),
-        axios.get(`${SERVER_API_URL}/orders/admin/dealers`).catch(()=>({data:[]})),
-        axios.get(`${SERVER_API_URL}/orders/admin/products`).catch(()=>({data:[]})),
+      const [ordersRes, salesmenRes, dealersRes, productsRes] = await Promise.all([
+        axios.get(`${SERVER_API_URL}/api/orders?discount_status=pending`),
+        axios.get(`${SERVER_API_URL}/api/salesmen`),
+        axios.get(`${SERVER_API_URL}/api/dealers`),
+        axios.get(`${SERVER_API_URL}/api/products`)
       ]);
-      setOrders(approvalsRes.data || []);
-      const smMap = {}; (salesmenRes.data||[]).forEach(s=>{ smMap[s._id||s.id] = s.name; });
-      const dMap = {}; (dealersRes.data||[]).forEach(d=>{ dMap[d._id||d.id] = d.name; });
-      const pMap = {}; (productsRes.data||[]).forEach(p=>{ pMap[p._id||p.id] = p.name; });
-      setSalesmanMap(smMap); setDealerMap(dMap); setProductMap(pMap);
-    } catch { setOrders([]); }
+      
+      let data = ordersRes.data || [];
+      const getTs = (o) => {
+        const raw = o.created_at || o.createdAt || o.updated_at || o.date || o.timestamp || null;
+        const t = raw ? new Date(raw).getTime() : 0;
+        if (t && !isNaN(t)) return t;
+        if (o._id && typeof o._id === 'string' && o._id.length >= 8) {
+          try { return parseInt(o._id.substring(0,8),16) * 1000; } catch { return 0; }
+        }
+        return 0;
+      };
+      const withTs = data.map(o => ({ __ts: getTs(o), o }));
+      withTs.sort((a,b)=> b.__ts - a.__ts);
+      const allZero = withTs.every(x=>x.__ts===0);
+      data = allZero ? data.slice().reverse() : withTs.map(x=>x.o);
+      setOrders(data);
+      
+      const smap = salesmenRes.data.reduce((acc, s) => ({ ...acc, [s.id]: s.name }), {});
+      setSalesmanMap(smap);
+
+      const dmap = dealersRes.data.reduce((acc, d) => ({ ...acc, [d.id]: d.name }), {});
+      setDealerMap(dmap);
+
+      const pmap = productsRes.data.reduce((acc, p) => ({ ...acc, [p.id]: p.name }), {});
+      setProductMap(pmap);
+
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    }
     setLoading(false);
   };
-  useEffect(()=>{ fetchApprovals(); },[]);
 
-  const handleApprove = async id => { await axios.post(`${SERVER_API_URL}/orders/admin/approve-discount/${id}`); fetchApprovals(); };
-  const handleReject = async id => { await axios.post(`${SERVER_API_URL}/orders/admin/reject-discount/${id}`); fetchApprovals(); };
+  const handleApprove = (orderId) => updateDiscountStatus(orderId, 'approved');
+  const handleReject = (orderId) => updateDiscountStatus(orderId, 'rejected');
+
+  const updateDiscountStatus = async (orderId, status) => {
+    try {
+      await axios.patch(`${SERVER_API_URL}/api/orders/${orderId}/discount-status`, { status });
+      alert(`Discount ${status} successfully.`);
+      fetchData(); // Refresh data
+    } catch (error) {
+      console.error('Error updating status:', error);
+      alert(`Failed to ${status} discount.`);
+    }
+  };
+
+  if (loading) {
+    return <div className="app-shell"> <main className="page fade-in"> <div className="surface-card elevated"> <p>Loading...</p> </div> </main> </div>;
+  }
 
   return (
-    <div className="app-shell" style={{minHeight:'100vh'}}>
-      <header className="app-header">
-        <div className="app-header__logo" onClick={()=>navigate('/home')}>NEXGROW</div>
-        <div className="app-header__actions">
-          <button className="btn danger" onClick={async()=>{ await signOut(auth); try { localStorage.removeItem('nexgrow_uid'); } catch {}; navigate('/'); }}>Sign Out</button>
-        </div>
-      </header>
+    <div className="app-shell">
+      <AppHeader />
       <main className="page fade-in">
-        <h1 className="section-title" style={{fontSize:'1.5rem'}}>Discount Approvals</h1>
         <div className="surface-card elevated">
-          {loading ? <p>Loading...</p> : orders.length===0 ? <p>No pending discount approvals.</p> : (
-            <ul className="order-list">
-              {orders.map(order => {
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem'}}>
+            <h1 className="section-title" style={{margin: 0}}>Pending Discount Approvals</h1>
+            <button className="btn secondary" onClick={() => navigate('/home')}>Back to Home</button>
+          </div>
+          {loading ? <p>Loading approvals...</p> : orders.length===0 ? <p>No pending discount approvals.</p> : (
+            <div className="order-list">
+              {(() => { const seqMap = computeDisplaySeqMap(orders); return orders.map(order => {
+                // ... (rest of the mapping logic is complex and preserved)
                 const productsArr = Array.isArray(order.products) ? order.products : [];
                 let totalBase = 0; let totalDiscountAmtExact = 0; let hasExplicitLineDiscount = false;
                 let computedLines = productsArr.map(p => {
@@ -70,10 +111,8 @@ const AdminDiscountApprovals = () => {
                   totalDiscountAmtExact += lineDiscountAmt;
                   return { ...p, base, pct, discounted, lineDiscountAmt };
                 });
-                // Fallback: if no explicit per-line discounts but aggregate discount present, approximate distribution
                 let fallbackApplied = false;
                 if (!hasExplicitLineDiscount && totalBase > 0) {
-                  // Prefer explicit discounted_total over discount percentage for accuracy
                   let aggregateDiscountAmt = 0;
                   if (order.discounted_total != null && order.discounted_total < totalBase) {
                     aggregateDiscountAmt = totalBase - Number(order.discounted_total);
@@ -96,49 +135,47 @@ const AdminDiscountApprovals = () => {
                 const effectivePct = totalBase > 0 ? (totalDiscountAmtExact / totalBase) * 100 : 0;
                 const status = order.discount_status || 'n/a';
                 const badgeClass = status==='approved'? 'badge success' : status==='pending'? 'badge warning' : status==='rejected'? 'badge danger':'badge';
-                const salesmanName = order.salesman_name || salesmanMap[order.salesman_id] || order.salesman_id || 'N/A';
-                const dealerName = order.dealer_name || dealerMap[order.dealer_id] || order.dealer_id || 'N/A';
-                return (
-                  <li key={order._id || order.id} className="order-card">
+                const salesmanName = order.salesman_name || salesmanMap[order.salesman_id] || 'N/A';
+                const dealerName = order.dealer_name || dealerMap[order.dealer_id] || 'N/A';
+        const seq = seqMap[String(order._id || order.id)] || 1;
+        return (
+                  <div key={order._id || order.id} className="order-card">
                     <header>
-                      <strong style={{fontSize:'.85rem',letterSpacing:'.5px'}}>{order.order_code ? order.order_code : `Order: ${order._id || order.id}`}</strong>
+          <strong style={{fontSize:'1rem'}}>{order.order_code || formatOrderDisplayId(order, { seq })}</strong>
                       <span className={badgeClass}>{status.toUpperCase()}</span>
                     </header>
-                    <div style={{fontSize:'.75rem',color:'var(--brand-text-soft)',display:'flex',flexWrap:'wrap',gap:'.85rem'}}>
-                      <span><strong style={{color:'var(--brand-text)'}}>Salesman:</strong> {salesmanName}</span>
-                      <span><strong style={{color:'var(--brand-text)'}}>Dealer:</strong> {dealerName}</span>
-                      {order.state && <span><strong style={{color:'var(--brand-text)'}}>State:</strong> {order.state}</span>}
+                    <div style={{fontSize:'.85rem',color:'var(--brand-text-soft)',display:'flex',flexWrap:'wrap',gap:'1.5rem', margin: '0.5rem 0'}}>
+                      <span><strong>Salesman:</strong> {salesmanName}</span>
+                      <span><strong>Dealer:</strong> {dealerName}</span>
+                      {order.state && <span><strong>State:</strong> {order.state}</span>}
                     </div>
                     {computedLines.length>0 && (
-                      <ul style={{margin:'.5rem 0 0 1rem',padding:0,fontSize:'.7rem',listStyle:'disc'}}>
+                      <ul style={{margin:'.75rem 0 0 1rem',padding:0,fontSize:'.8rem',listStyle:'disc'}}>
                         {computedLines.map((p,i)=>{
-                          const name = p.product_name || productMap[p.product_id] || p.product_id || 'Product';
+                          const name = p.product_name || productMap[p.product_id] || 'Product';
                           return (
-                            <li key={i} style={{margin:'2px 0'}}>
-                              {name} - Qty: {p.quantity} - Base: ₹{formatINR(p.base)}{p.pct>0 && <> - {formatPercent(p.pct,{decimals:2})}% (₹{formatINR(p.lineDiscountAmt)}) → <strong>₹{formatINR(p.discounted)}</strong></>}
+                            <li key={i} style={{margin:'4px 0'}}>
+                              {name} - Qty: {p.quantity} - Base: {formatINR(p.base)}{p.pct>0 && <> - {formatPercent(p.pct,{decimals:1})}% → <strong>{formatINR(p.discounted)}</strong></>}
                             </li>
                           );
                         })}
                       </ul>
                     )}
-                    <div className="order-metrics" style={{marginTop:'.75rem'}}>
-                      <span>Total: ₹{formatINR(totalBase)}</span>
-                      <span>Discount Amt: ₹{formatINR(totalDiscountAmtExact)}</span>
-                      <span>After Discount: ₹{formatINR(totalAfter)}</span>
-                      <span>Effective %: {formatPercent(effectivePct,{decimals:2})}%</span>
+                    <div className="order-metrics">
+                      <span>Total: {formatINR(totalBase)}</span>
+                      <span>Discount: {formatINR(totalDiscountAmtExact)}</span>
+                      <span>Final: {formatINR(totalAfter)}</span>
+                      <span>Effective: {formatPercent(effectivePct,{decimals:1})}%</span>
                     </div>
-                    <div style={{marginTop:'.85rem',display:'flex',gap:'.6rem'}}>
+                    <div style={{marginTop:'1rem',display:'flex',gap:'.75rem'}}>
                       <button className="btn" onClick={()=>handleApprove(order._id || order.id)}>Approve</button>
                       <button className="btn danger" onClick={()=>handleReject(order._id || order.id)}>Reject</button>
                     </div>
-                  </li>
+                  </div>
                 );
-              })}
-            </ul>
+              }); })()}
+            </div>
           )}
-          <div style={{marginTop:'1.5rem'}}>
-            <button className="btn secondary" onClick={()=>navigate('/home')}>Back</button>
-          </div>
         </div>
       </main>
     </div>

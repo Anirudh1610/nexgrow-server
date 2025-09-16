@@ -2,9 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { SERVER_API_URL } from '../Auth/APIConfig';
 import { auth } from '../Auth/AuthConfig';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
-import { formatINR, formatPercent } from './numberFormat';
+import { formatINR, formatPercent, formatOrderDisplayId, computeDisplaySeqMap } from './numberFormat';
+import AppHeader from '../components/AppHeader';
 
 const SalesManager = () => {
   const [user, setUser] = useState(null);
@@ -24,7 +25,21 @@ const SalesManager = () => {
     setLoading(true);
     try {
       const res = await axios.get(`${SERVER_API_URL}/orders/manager/orders`, { params: { uid } });
-      setOrders(Array.isArray(res.data) ? res.data : []);
+      let data = Array.isArray(res.data) ? res.data : [];
+      const getTs = (o) => {
+        const raw = o.created_at || o.createdAt || o.updated_at || o.date || o.timestamp || null;
+        const t = raw ? new Date(raw).getTime() : 0;
+        if (t && !isNaN(t)) return t;
+        if (o._id && typeof o._id === 'string' && o._id.length >= 8) {
+          try { return parseInt(o._id.substring(0,8),16) * 1000; } catch { return 0; }
+        }
+        return 0;
+      };
+      const withTs = data.map(o => ({ __ts: getTs(o), o }));
+      withTs.sort((a,b)=> b.__ts - a.__ts);
+      const allZero = withTs.every(x=>x.__ts===0);
+      data = allZero ? data.slice().reverse() : withTs.map(x=>x.o);
+      setOrders(data);
     } catch (e) {
       setOrders([]);
     }
@@ -123,7 +138,7 @@ const SalesManager = () => {
     return (
       <li key={id} className="order-card">
         <header>
-          <strong style={{ fontSize: '.9rem' }}>{order.order_code || id}</strong>
+          <strong style={{ fontSize: '.9rem' }}>{order.order_code || formatOrderDisplayId(order, { seq: seqMap[id] })}</strong>
           {isEditing ? (
             <select value={draft.discount_status || 'pending'} onChange={(e)=>handleHeaderChange(id,'discount_status',e.target.value)}>
               <option value="approved">Approved</option>
@@ -192,11 +207,11 @@ const SalesManager = () => {
     return allZero ? (orders||[]).slice().reverse() : withTs.map(x=>x.o);
   }, [orders]);
 
+  const seqMap = useMemo(() => computeDisplaySeqMap(sortedOrders), [sortedOrders]);
+
   return (
     <div className="app-shell" style={{ minHeight: '100vh' }}>
-      <header className="app-header">
-        <div className="app-header__logo" onClick={() => navigate('/home')}>NEXGROW</div>
-      </header>
+  <AppHeader />
       <main className="page narrow fade-in">
         <div className="surface-card elevated" style={{ marginBottom: '1.25rem' }}>
           <h1 className="section-title" style={{ fontSize: '1.4rem' }}>Team Orders</h1>
