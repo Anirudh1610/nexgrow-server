@@ -11,6 +11,7 @@ const SalesManager = () => {
   const [user, setUser] = useState(null);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState('team'); // 'team' or 'mine'
   const [editing, setEditing] = useState({}); // orderId -> boolean
   const [drafts, setDrafts] = useState({}); // orderId -> partial update
   const [role, setRole] = useState('guest');
@@ -21,11 +22,19 @@ const SalesManager = () => {
     return () => unsub();
   }, []);
 
-  const fetchOrders = async (uid) => {
+  const fetchOrders = async (uid, mode = 'team') => {
     setLoading(true);
     try {
-      const res = await axios.get(`${SERVER_API_URL}/orders/manager/orders`, { params: { uid } });
-      let data = Array.isArray(res.data) ? res.data : [];
+      const params = {};
+      if (user?.uid) params.uid = user.uid;
+      if (user?.email) params.email = user.email;
+      let res, data;
+      if (mode === 'mine') {
+        res = await axios.get(`${SERVER_API_URL}/orders/my-orders`, { params });
+      } else {
+        res = await axios.get(`${SERVER_API_URL}/orders/manager/orders`, { params });
+      }
+      data = Array.isArray(res.data) ? res.data : [];
       const getTs = (o) => {
         const raw = o.created_at || o.createdAt || o.updated_at || o.date || o.timestamp || null;
         const t = raw ? new Date(raw).getTime() : 0;
@@ -47,8 +56,8 @@ const SalesManager = () => {
   };
 
   useEffect(() => {
-    if (user?.uid) fetchOrders(user.uid);
-  }, [user]);
+    if (user?.uid) fetchOrders(user.uid, viewMode);
+  }, [user, viewMode]);
 
   // TEST MODE: Allow all users to access Sales Manager view
   useEffect(() => {
@@ -211,10 +220,14 @@ const SalesManager = () => {
 
   return (
     <div className="app-shell" style={{ minHeight: '100vh' }}>
-  <AppHeader />
+      <AppHeader />
       <main className="page narrow fade-in">
         <div className="surface-card elevated" style={{ marginBottom: '1.25rem' }}>
-          <h1 className="section-title" style={{ fontSize: '1.4rem' }}>Team Orders</h1>
+          <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+            <button className={viewMode === 'team' ? 'btn' : 'btn secondary'} onClick={() => setViewMode('team')}>Team Orders</button>
+            <button className={viewMode === 'mine' ? 'btn' : 'btn secondary'} onClick={() => setViewMode('mine')}>My Orders</button>
+          </div>
+          <h1 className="section-title" style={{ fontSize: '1.4rem' }}>{viewMode === 'team' ? 'Team Orders' : 'My Orders'}</h1>
           {loading ? (
             <p style={{ margin: 0 }}>Loading orders...</p>
           ) : sortedOrders.length === 0 ? (

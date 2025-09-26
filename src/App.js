@@ -11,7 +11,7 @@ import AdminDiscountApprovals from './Home/AdminDiscountApprovals';
 import AdminOrders from './Home/AdminOrders';
 import AdminManagement from './Home/AdminManagement';
 import axios from 'axios';
-import { SERVER_API_URL } from './Auth/APIConfig';
+import { SERVER_API_URL, API_BASE_URL } from './Auth/APIConfig';
 import SalesManager from './Home/SalesManager';
 
 function App() {
@@ -21,17 +21,25 @@ function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      // Auto-link Firebase UID to salesman by email (idempotent)
+      // Auto-link Firebase UID to salesman or director by email (idempotent)
       (async () => {
         try {
           if (currentUser?.uid && currentUser?.email) {
             const key = `nexgrow_link_${currentUser.uid}`;
             // Optional: avoid spamming on rapid reloads
             if (!localStorage.getItem(key)) {
-              await axios.post(`${SERVER_API_URL}/orders/link-uid`, {
-                uid: currentUser.uid,
-                email: currentUser.email
-              });
+              const payload = { uid: currentUser.uid, email: currentUser.email };
+              // Try primary (/api base), then fallback to non-/api base to handle deployments without the prefix
+              try {
+                await axios.post(`${SERVER_API_URL}/orders/link-uid`, payload);
+              } catch (err) {
+                const status = err?.response?.status;
+                if (status === 404 || status === 405) {
+                  await axios.post(`${API_BASE_URL}/orders/link-uid`, payload);
+                } else {
+                  throw err;
+                }
+              }
               try { localStorage.setItem(key, '1'); } catch {}
             }
           }
@@ -40,6 +48,14 @@ function App() {
           console.warn('Auto-link UID failed:', e?.response?.data || e?.message || e);
         }
       })();
+      try {
+        if (currentUser) {
+          const minimal = { uid: currentUser.uid, email: currentUser.email };
+          localStorage.setItem('nexgrow_user', JSON.stringify(minimal));
+        } else {
+          localStorage.removeItem('nexgrow_user');
+        }
+      } catch {}
       setLoading(false);
     });
 

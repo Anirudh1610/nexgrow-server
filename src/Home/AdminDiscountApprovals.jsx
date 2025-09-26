@@ -22,11 +22,13 @@ const AdminDiscountApprovals = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
+      const params = {};
+      try { const u = JSON.parse(localStorage.getItem('nexgrow_user')||'null'); if (u?.uid) params.uid = u.uid; if (u?.email) params.email = u.email; } catch {}
       const [ordersRes, salesmenRes, dealersRes, productsRes] = await Promise.all([
-        axios.get(`${SERVER_API_URL}/api/orders?discount_status=pending`),
-        axios.get(`${SERVER_API_URL}/api/salesmen`),
-        axios.get(`${SERVER_API_URL}/api/dealers`),
-        axios.get(`${SERVER_API_URL}/api/products`)
+        axios.get(`${SERVER_API_URL}/orders/admin/discount-approvals`, { params }),
+        axios.get(`${SERVER_API_URL}/orders/admin/salesmen`, { params }),
+        axios.get(`${SERVER_API_URL}/orders/admin/dealers`, { params }),
+        axios.get(`${SERVER_API_URL}/orders/admin/products`, { params })
       ]);
       
       let data = ordersRes.data || [];
@@ -65,7 +67,10 @@ const AdminDiscountApprovals = () => {
 
   const updateDiscountStatus = async (orderId, status) => {
     try {
-      await axios.patch(`${SERVER_API_URL}/api/orders/${orderId}/discount-status`, { status });
+      const params = {};
+      try { const u = JSON.parse(localStorage.getItem('nexgrow_user')||'null'); if (u?.uid) params.uid = u.uid; if (u?.email) params.email = u.email; } catch {}
+      const path = status === 'approved' ? 'approve-discount' : 'reject-discount';
+      await axios.post(`${SERVER_API_URL}/orders/admin/${path}/${orderId}`, null, { params });
       alert(`Discount ${status} successfully.`);
       fetchData(); // Refresh data
     } catch (error) {

@@ -14,7 +14,9 @@ const AdminOrders = () => {
     const fetchOrders = async () => {
       setLoading(true);
       try {
-        const res = await axios.get(`${SERVER_API_URL}/orders/admin/orders`);
+        const params = {};
+        try { const u = JSON.parse(localStorage.getItem('nexgrow_user')||'null'); if (u?.uid) params.uid = u.uid; if (u?.email) params.email = u.email; } catch {}
+        const res = await axios.get(`${SERVER_API_URL}/orders/admin/orders`, { params });
         let data = res.data || [];
         const getTs = (o) => {
           const raw = o.created_at || o.createdAt || o.updated_at || o.date || o.timestamp || null;
@@ -43,9 +45,6 @@ const AdminOrders = () => {
       <AppHeader
         centerContent={
           <div className="header-nav" style={{ display:'flex', gap:'.5rem', marginRight:'.5rem' }}>
-            <button className="btn secondary" onClick={()=>navigate('/orders')}>Salesman</button>
-            <button className="btn secondary" onClick={()=>navigate('/manager')}>Manager</button>
-            <button className="btn secondary" onClick={()=>navigate('/admin/orders')}>Admin</button>
           </div>
         }
       />

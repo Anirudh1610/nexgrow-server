@@ -9,10 +9,10 @@ import { formatINR, formatPercent } from './numberFormat';
 const OrderForm = ({ onSignOut }) => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
-  const [salesmen, setSalesmen] = useState([]);
+  const [salesmen, setSalesmen] = useState([]); // no longer used for selection, retained for minimal changes
   const [dealers, setDealers] = useState([]);
   const [products, setProducts] = useState([]);
-  const [loadingSalesmen, setLoadingSalesmen] = useState(false);
+  const [loadingSalesmen, setLoadingSalesmen] = useState(false); // no longer used
   const [loadingDealers, setLoadingDealers] = useState(false);
   const [me, setMe] = useState(null); // holds role and profile
   // loadingProducts removed as it's not used in the UI
@@ -51,21 +51,18 @@ const OrderForm = ({ onSignOut }) => {
     return () => unsubscribe();
   }, []);
 
-  const fetchSalesmen = async (state) => {
-    if (!state) {
-      setSalesmen([]);
-      return;
-    }
+  // Salesmen fetching no longer needed for selection
 
-    setLoadingSalesmen(true);
-    try {
-      const response = await axios.get(`${SERVER_API_URL}/orders/salesmen?state=${state}`);
-      setSalesmen(response.data || []);
-    } catch (error) {
-      console.error('Error fetching salesmen:', error);
-      setSalesmen([]);
-    } finally {
-      setLoadingSalesmen(false);
+  const initFromMe = async (fbUser, meObj) => {
+    const myState = meObj?.state || '';
+    const myId = meObj?._id || meObj?.id || '';
+    setFormData(prev => ({ ...prev, state: myState, salesman: myId }));
+    if (meObj?.role === 'sales_manager') {
+      await fetchTeamDealers(fbUser?.uid, fbUser?.email);
+    } else if (myId) {
+      await fetchDealers(myId);
+    } else {
+      setDealers([]);
     }
   };
 
@@ -75,7 +72,19 @@ const OrderForm = ({ onSignOut }) => {
       if (fbUser?.uid) params.append('uid', fbUser.uid);
       if (fbUser?.email) params.append('email', fbUser.email);
       const response = await axios.get(`${SERVER_API_URL}/orders/me?${params.toString()}`);
-      setMe(response.data || null);
+      let meObj = response.data || null;
+      // If backend still says guest, try linking then refetch once
+      if (!meObj || meObj.role === 'guest') {
+        try {
+          if (fbUser?.uid && fbUser?.email) {
+            await axios.post(`${SERVER_API_URL}/orders/link-uid`, { uid: fbUser.uid, email: fbUser.email });
+            const refetch = await axios.get(`${SERVER_API_URL}/orders/me?${params.toString()}`);
+            meObj = refetch.data || meObj;
+          }
+        } catch {}
+      }
+      setMe(meObj);
+      await initFromMe(fbUser, meObj);
     } catch (e) {
       setMe(null);
     }
@@ -100,12 +109,12 @@ const OrderForm = ({ onSignOut }) => {
   };
 
   // For sales managers: fetch all dealers across team
-  const fetchTeamDealers = async () => {
+  const fetchTeamDealers = async (uid, email) => {
   setLoadingDealers(true);
   try {
       const params = new URLSearchParams();
-      if (user?.uid) params.append('uid', user.uid);
-      if (user?.email) params.append('email', user.email);
+        if (uid) params.append('uid', uid);
+        if (email) params.append('email', email);
       const response = await axios.get(`${SERVER_API_URL}/orders/manager/team/dealers?${params.toString()}`);
       setDealers(response.data || []);
   } catch (e) {
@@ -187,39 +196,8 @@ const OrderForm = ({ onSignOut }) => {
   // Handle changes for main form fields
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-
-    if (name === 'state') {
-      setFormData(prev => ({
-        ...prev,
-        salesman: '',
-        dealer: ''
-      }));
-      fetchSalesmen(value);
-      setDealers([]);
-    }
-    if (name === 'salesman') {
-      setFormData(prev => ({
-        ...prev,
-        dealer: ''
-      }));
-      // Manager logic: selecting self shows team dealers; else filter to selected salesman
-      if (me?.role === 'sales_manager') {
-        const isSelf = value === '__self__' || (me?._id && String(value) === String(me._id));
-        if (isSelf) {
-          fetchTeamDealers();
-        } else if (value) {
-          fetchDealers(value);
-        } else {
-          setDealers([]);
-        }
-      } else {
-        fetchDealers(value);
-      }
-    }
+    setFormData(prev => ({ ...prev, [name]: value }));
+    // Only dealer selection remains interactive
   };
 
   // Removed preloading team dealers on state-only; managers must pick themselves to see team dealers
@@ -280,9 +258,11 @@ const OrderForm = ({ onSignOut }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const { state, salesman, dealer } = formData;
-  if (!state || !salesman || !dealer) {
-      alert('Please fill in all fields.');
+    const dealer = formData.dealer;
+    const state = me?.state || formData.state || '';
+    const salesman = me?._id || formData.salesman || '';
+    if (!dealer) {
+      alert('Please choose a dealer.');
       return;
     }
     // Validate product entries
@@ -304,7 +284,7 @@ const OrderForm = ({ onSignOut }) => {
       discount_pct: Number(entry.discount) || 0,
       discounted_price: (()=>{ const base=entry.priceDetails.total_price; const pct=Number(entry.discount)||0; return base - (base*pct/100); })()
     }));
-    const resolvedSalesmanId = (me?.role === 'sales_manager' && formData.salesman === '__self__') ? (me?._id || '') : salesman;
+    const resolvedSalesmanId = me?._id || salesman;
     const orderData = {
       state,
       salesman_id: resolvedSalesmanId,
@@ -336,9 +316,7 @@ const OrderForm = ({ onSignOut }) => {
       });
       setOrderSummary({
         state,
-        salesman: (me?.role === 'sales_manager' && salesman === '__self__')
-          ? (me?.name || 'Me (All Team Dealers)')
-          : ((salesmen.find(s => (s._id || s.id) === salesman)?.name) || salesman),
+        salesman: (me?.name || me?.email || 'Me'),
         dealer: (dealers.find(d => (d._id || d.id) === dealer)?.name) || dealer,
         discount: Number(aggregateDiscountPct.toFixed(2)),
         totalPrice,
@@ -349,7 +327,7 @@ const OrderForm = ({ onSignOut }) => {
       });
       // Reset form basics
       setProductEntries([{ product: '', packingSizes: [], productSize: '', quantity: '', priceDetails: null, loadingPackingSizes: false, discount: 0 }]);
-      setFormData({ state: '', salesman: '', dealer: '' });
+      setFormData(prev => ({ ...prev, dealer: '' }));
     } catch (error) {
       alert('Failed to submit the order. Please try again.');
     }
@@ -538,31 +516,11 @@ const OrderForm = ({ onSignOut }) => {
             Apply discounts per product line. Any discount {'>'} 0% requires admin approval.
           </p>
           <form onSubmit={handleSubmit} className="form-grid" style={{gap:'1.5rem'}}>
-            <div className="form-row">
-              <label htmlFor="state">State</label>
-              <select id="state" name="state" value={formData.state} onChange={handleInputChange} className="input" required>
-                <option value="">Choose a state</option>
-                <option value="AP">Andhra Pradesh</option>
-                <option value="TG">Telangana</option>
-                <option value="TN">Tamil Nadu</option>
-                <option value="UP">Uttar Pradesh</option>
-                <option value="WB">West Bengal</option>
-              </select>
-            </div>
-            <div className="form-row">
-              <label htmlFor="salesman">Salesman</label>
-              <select id="salesman" name="salesman" value={formData.salesman} onChange={handleInputChange} className="input" disabled={!formData.state || loadingSalesmen} required>
-                <option value="">{!formData.state ? 'Select a state first' : loadingSalesmen ? 'Loading salesmen...' : (me?.role === 'sales_manager' ? 'Choose yourself for all team dealers' : 'Choose a salesman')}</option>
-                {me?.role === 'sales_manager' && (
-                  <option value="__self__">{me?.name ? `${me.name} (All Team Dealers)` : 'Me (All Team Dealers)'}</option>
-                )}
-                {Array.isArray(salesmen) && salesmen.map(s => (<option key={s._id || s.id} value={s._id || s.id}>{s.name}</option>))}
-              </select>
-            </div>
+            {/* State and Salesman are auto-filled from the current user */}
             <div className="form-row">
               <label htmlFor="dealer">Dealer</label>
-              <select id="dealer" name="dealer" value={formData.dealer} onChange={handleInputChange} className="input" required disabled={!formData.salesman || loadingDealers}>
-                <option value="">{!formData.salesman ? 'Select a salesman first' : (loadingDealers ? 'Loading dealers...' : 'Choose a dealer')}</option>
+              <select id="dealer" name="dealer" value={formData.dealer} onChange={handleInputChange} className="input" required disabled={loadingDealers}>
+                <option value="">{loadingDealers ? 'Loading dealers...' : 'Choose a dealer'}</option>
                 {Array.isArray(dealers) && dealers.map(d => (<option key={d._id || d.id} value={d._id || d.id}>{d.name}</option>))}
               </select>
             </div>

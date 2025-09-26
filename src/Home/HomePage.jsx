@@ -3,12 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../Auth/AuthConfig';
 import axios from 'axios';
-import { SERVER_API_URL } from '../Auth/APIConfig';
+import { SERVER_API_URL, API_BASE_URL } from '../Auth/APIConfig';
 import AppHeader from '../components/AppHeader';
 
 const HomePage = () => {
   const navigate = useNavigate();
-  const [view, setView] = useState('admin'); // 'admin' or 'salesman'
   const [user, setUser] = useState(null);
   const [role, setRole] = useState('guest');
 
@@ -24,8 +23,21 @@ const HomePage = () => {
     const fetchRole = async () => {
       try {
         if (user?.uid || user?.email) {
-          const res = await axios.get(`${SERVER_API_URL}/orders/me`, { params: { uid: user.uid, email: user.email } });
-          setRole(res.data?.role || 'guest');
+          const params = { uid: user.uid, email: user.email };
+          let roleVal = 'guest';
+          try {
+            const res = await axios.get(`${SERVER_API_URL}/orders/me`, { params });
+            roleVal = res.data?.role || 'guest';
+          } catch (err) {
+            const status = err?.response?.status;
+            if (status === 404 || status === 405) {
+              const res2 = await axios.get(`${API_BASE_URL}/orders/me`, { params });
+              roleVal = res2.data?.role || 'guest';
+            } else {
+              throw err;
+            }
+          }
+          setRole(roleVal);
         } else {
           setRole('guest');
         }
@@ -38,15 +50,7 @@ const HomePage = () => {
 
   return (
     <div className="app-shell fade-in">
-      <AppHeader
-        centerContent={
-          <div className="nav-tabs">
-            <button className={view === 'admin' ? 'active' : ''} onClick={() => setView('admin')}>Admin</button>
-            <button className={view === 'manager' ? 'active' : ''} onClick={() => setView('manager')}>Sales Manager</button>
-            <button className={view === 'salesman' ? 'active' : ''} onClick={() => setView('salesman')}>Salesman</button>
-          </div>
-        }
-      />
+      <AppHeader />
       <main className="page">
         <h1
           className="section-title"
@@ -59,7 +63,7 @@ const HomePage = () => {
           Welcome, {user?.displayName?.split(' ')[0] || 'User'}!
         </h1>
         
-        {view === 'admin' && (
+        {role === 'director' && (
           <div className="tiles">
             <div className="tile" onClick={() => navigate('/admin/discount-approvals')}>
               <h3>Discount Approvals</h3>
@@ -80,7 +84,7 @@ const HomePage = () => {
           </div>
         )}
         
-        {view === 'salesman' && (
+        {role === 'salesman' && (
           <div className="tiles">
             <div className="tile" onClick={() => navigate('/order-form')}>
               <h3>Create Order</h3>
@@ -93,7 +97,7 @@ const HomePage = () => {
           </div>
         )}
 
-        {view === 'manager' && (
+        {(role === 'sales_manager' || role === 'admin') && (
           <div className="tiles">
             <div className="tile" onClick={() => navigate('/order-form')}>
               <h3>Create Order</h3>
