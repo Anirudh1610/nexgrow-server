@@ -10,6 +10,9 @@ import Dashboard from './Home/Dashboard';
 import AdminDiscountApprovals from './Home/AdminDiscountApprovals';
 import AdminOrders from './Home/AdminOrders';
 import AdminManagement from './Home/AdminManagement';
+import ForecastForm from './Home/ForecastForm';
+import ForecastView from './Home/ForecastView';
+import DirectorForecasts from './Home/DirectorForecasts';
 import axios from 'axios';
 import { SERVER_API_URL, API_BASE_URL } from './Auth/APIConfig';
 import SalesManager from './Home/SalesManager';
@@ -97,10 +100,13 @@ function App() {
         <Route path="/order-form" element={<ProtectedRoute user={user}><OrderForm onSignOut={handleSignOut} /></ProtectedRoute>} />
         <Route path="/orders" element={<ProtectedRoute user={user}><Orders /></ProtectedRoute>} />
         <Route path="/dashboard" element={<ProtectedRoute user={user}><Dashboard /></ProtectedRoute>} />
-  <Route path="/manager" element={<ProtectedRoute user={user}><SalesManager /></ProtectedRoute>} />
+        <Route path="/manager" element={<ProtectedRoute user={user}><SalesManager /></ProtectedRoute>} />
+        <Route path="/forecast" element={<ProtectedRoute user={user}><ForecastForm /></ProtectedRoute>} />
+        <Route path="/forecast-view" element={<ProtectedRoute user={user}><ForecastView /></ProtectedRoute>} />
         <Route path="/admin/orders" element={<ProtectedRoute user={user}><AdminOrders /></ProtectedRoute>} />
         <Route path="/admin/discount-approvals" element={<ProtectedRoute user={user}><AdminDiscountApprovals /></ProtectedRoute>} />
         <Route path="/admin/management" element={<ProtectedRoute user={user}><AdminManagement /></ProtectedRoute>} />
+        <Route path="/admin/forecasts" element={<ProtectedRoute user={user}><DirectorForecasts /></ProtectedRoute>} />
       </Routes>
     </Router>
   );

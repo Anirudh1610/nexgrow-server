@@ -77,6 +77,10 @@ const HomePage = () => {
               <h3>Data Management</h3>
               <p>Maintain salesmen, dealers and product catalog entries.</p>
             </div>
+            <div className="tile" onClick={() => navigate('/admin/forecasts')}>
+              <h3>Sales Forecasts</h3>
+              <p>View sales forecasts and targets by salesman.</p>
+            </div>
             <div className="tile" onClick={() => navigate('/dashboard')}>
               <h3>Dashboard</h3>
               <p>High level metrics & quick sales insights (beta).</p>
@@ -94,6 +98,14 @@ const HomePage = () => {
               <h3>My Orders</h3>
               <p>Track submitted orders and discount statuses.</p>
             </div>
+            <div className="tile" onClick={() => navigate('/forecast')}>
+              <h3>Sales Forecast</h3>
+              <p>Set your sales targets for upcoming months.</p>
+            </div>
+            <div className="tile" onClick={() => navigate('/forecast-view')}>
+              <h3>View/Edit Forecasts</h3>
+              <p>Review and modify your existing forecasts.</p>
+            </div>
           </div>
         )}
 
@@ -110,6 +122,14 @@ const HomePage = () => {
             <div className="tile" onClick={() => navigate('/orders')}>
               <h3>My Orders</h3>
               <p>Quick link to your personal orders list.</p>
+            </div>
+            <div className="tile" onClick={() => navigate('/forecast')}>
+              <h3>Sales Forecast</h3>
+              <p>Set your sales targets for upcoming months.</p>
+            </div>
+            <div className="tile" onClick={() => navigate('/forecast-view')}>
+              <h3>View/Edit Forecasts</h3>
+              <p>Review and modify your existing forecasts.</p>
             </div>
           </div>
         )}
