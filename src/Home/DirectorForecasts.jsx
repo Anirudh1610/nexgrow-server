@@ -34,7 +34,7 @@ const DirectorForecasts = () => {
 
   const fetchSalesmen = async () => {
     try {
-      const response = await axios.get(`${SERVER_API_URL}/admin/salesmen`);
+      const response = await axios.get(`${SERVER_API_URL}/orders/admin/salesmen`);
       setSalesmen(response.data || []);
     } catch (error) {
       console.error('Error fetching salesmen:', error);
@@ -69,7 +69,7 @@ const DirectorForecasts = () => {
   };
 
   const getSelectedSalesmanName = () => {
-    const salesman = salesmen.find(s => s.id === selectedSalesman);
+    const salesman = salesmen.find(s => s._id === selectedSalesman);
     return salesman ? salesman.name : '';
   };
 
@@ -103,7 +103,7 @@ const DirectorForecasts = () => {
               >
                 <option value="">-- Select a Salesman --</option>
                 {salesmen.map(salesman => (
-                  <option key={salesman.id} value={salesman.id}>
+                  <option key={salesman._id} value={salesman._id}>
                     {salesman.name} ({salesman.state || 'No State'})
                   </option>
                 ))}
