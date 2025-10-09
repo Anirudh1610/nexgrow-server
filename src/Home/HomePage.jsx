@@ -53,9 +53,9 @@ const HomePage = () => {
       <AppHeader />
       <main className="page">
         <h1
-          className="section-title"
+          className="section-title mobile-center"
           style={{
-            fontSize: '2rem',
+            fontSize: 'clamp(1.5rem, 4vw, 2rem)',
             fontWeight: 700,
             marginBottom: '2rem'
           }}

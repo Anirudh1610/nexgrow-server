@@ -536,7 +536,7 @@ const OrderForm = ({ onSignOut }) => {
                   const selectedProduct = (products || []).find(p => (p._id || p.id) === entry.product) || {};
                   return (
                   <div key={idx} className="surface-card" style={{padding:'1.25rem', boxShadow:'var(--brand-shadow-md)', border: '1px solid var(--brand-border)'}}>
-                    <div className="form-grid" style={{gap:'1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))'}}>
+                    <div className="form-grid four-col">
                       <div className="form-row">
                         <label htmlFor={`product-${idx}`}>Product</label>
                         <select id={`product-${idx}`} value={entry.product} onChange={e=>handleProductEntryChange(idx,'product',e.target.value)} className="input" required>
@@ -580,7 +580,7 @@ const OrderForm = ({ onSignOut }) => {
                         Line Total: {formatINR(base)}{pct>0 && <span style={{color: '#b91c1c'}}> - {pct}% ({formatINR(lineDiscountAmt)})</span>} → <span style={{color:'var(--brand-green-dark)', fontWeight: 700}}>{formatINR(after)}</span>
                       </div>
                     )}
-                    <div style={{marginTop:'1rem',display:'flex',gap:'.75rem'}}>
+                    <div className="btn-group" style={{marginTop:'1rem'}}>
                       {productEntries.length > 1 && (
                         <button type="button" className="btn danger" onClick={()=>handleRemoveProductEntry(idx)}>Remove</button>
                       )}

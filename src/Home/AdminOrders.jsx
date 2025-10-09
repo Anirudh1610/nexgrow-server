@@ -49,7 +49,7 @@ const AdminOrders = () => {
         }
       />
       <main className="page fade-in">
-        <h1 className="section-title" style={{ fontSize: '1.5rem' }}>
+        <h1 className="section-title mobile-center" style={{ fontSize: 'clamp(1.3rem, 4vw, 1.5rem)' }}>
           All Orders
         </h1>
         <div className="surface-card elevated">

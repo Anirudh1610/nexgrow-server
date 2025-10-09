@@ -100,6 +100,19 @@ body, html, #root {
 .form-grid {
   display: grid;
   gap: 1.25rem;
+  grid-template-columns: 1fr;
+}
+
+.form-grid.two-col {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.form-grid.three-col {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.form-grid.four-col {
+  grid-template-columns: repeat(4, 1fr);
 }
 
 .form-row {
@@ -256,6 +269,113 @@ body, html, #root {
   margin-top: 1.5rem;
 }
 
+/* Mobile Utility Classes */
+.mobile-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.mobile-center {
+  text-align: center;
+}
+
+.mobile-full-width {
+  width: 100%;
+}
+
+.mobile-hidden {
+  display: none;
+}
+
+.desktop-hidden {
+  display: block;
+}
+
+.btn-group {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--brand-border);
+}
+
+.product-entry {
+  background-color: var(--brand-surface);
+  border: 1px solid var(--brand-border);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.order-summary {
+  background-color: var(--brand-surface-alt);
+  border: 2px solid var(--brand-green);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  margin-top: 2rem;
+}
+
+/* Dashboard Stats Grid */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.stat {
+  text-align: center;
+  padding: 1.5rem;
+}
+
+.stat h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--brand-text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat .value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--brand-green-dark);
+  margin: 0;
+}
+
+/* Data Table */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.data-table th {
+  background-color: var(--brand-surface-alt);
+  color: var(--brand-text);
+  font-weight: 600;
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 2px solid var(--brand-border);
+}
+
+.data-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--brand-border);
+  color: var(--brand-text);
+}
+
+.data-table tbody tr:hover {
+  background-color: var(--brand-surface-alt);
+}
+
 /* Animations */
 .fade-in {
   animation: fadeIn .5s ease-out forwards;
@@ -298,22 +418,343 @@ body, html, #root {
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
-/* Responsive */
+/* Responsive - Mobile First */
+@media (max-width: 480px) {
+  /* Small phones */
+  .app-header {
+    padding: 0.75rem;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .app-header__logo {
+    font-size: 1.1rem;
+    text-align: center;
+  }
+  
+  .app-header__actions {
+    width: 100%;
+    justify-content: center;
+    margin-left: 0;
+    gap: 0.5rem;
+  }
+  
+  .app-header__actions span {
+    font-size: 0.75rem !important;
+    display: none; /* Hide email on very small screens */
+  }
+  
+  /* Show mobile utilities */
+  .mobile-hidden {
+    display: none !important;
+  }
+  
+  .desktop-hidden {
+    display: block !important;
+  }
+  
+  .page {
+    padding: 1rem 0.75rem;
+  }
+  
+  .section-title {
+    font-size: 1.1rem;
+    text-align: center;
+  }
+  
+  /* Form optimizations */
+  .form-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .btn {
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+    width: 100%;
+    text-align: center;
+  }
+  
+  .btn.sm {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+  }
+  
+  /* Tiles */
+  .tiles {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .tile {
+    padding: 1.25rem;
+    text-align: center;
+  }
+  
+  .tile h3 {
+    font-size: 1.1rem;
+  }
+  
+  .tile p {
+    font-size: 0.9rem;
+  }
+  
+  /* Tables */
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  table {
+    min-width: 600px;
+    font-size: 0.75rem;
+  }
+  
+  .data-table th, .data-table td {
+    padding: 0.5rem;
+    font-size: 0.75rem;
+  }
+  
+  /* Stats grid */
+  .stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+  
+  .stat {
+    padding: 1rem;
+  }
+  
+  .stat .value {
+    font-size: 1.4rem;
+  }
+  
+  .stat h4 {
+    font-size: 0.8rem;
+  }
+  
+  /* Order cards */
+  .order-card {
+    padding: 1rem;
+  }
+  
+  .order-card header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .order-card .order-metrics {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  /* Navigation tabs */
+  .nav-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  
+  .nav-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .nav-tabs .nav-tab {
+    white-space: nowrap;
+    min-width: auto;
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+  }
+  
+  /* Product entries */
+  .product-entry {
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+  
+  .product-entry .form-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  /* Order summary */
+  .order-summary {
+    padding: 1rem;
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Medium phones and small tablets */
+  .app-header {
+    padding: 0.875rem;
+    flex-wrap: wrap;
+  }
+  
+  .app-header__actions span {
+    display: inline; /* Show email again on slightly larger screens */
+    font-size: 0.8rem !important;
+  }
+  
+  .page {
+    padding: 1.25rem 1rem;
+  }
+  
+  .tiles {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+  
+  .form-grid.two-col {
+    grid-template-columns: 1fr;
+  }
+  
+  .form-grid.three-col {
+    grid-template-columns: 1fr;
+  }
+  
+  .form-grid.four-col {
+    grid-template-columns: 1fr;
+  }
+  
+  /* Better button groups */
+  .btn-group {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .btn-group .btn {
+    width: 100%;
+  }
+  
+  /* Admin management specific */
+  .nav-tabs {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .nav-tabs button {
+    width: 100%;
+    text-align: center;
+  }
+}
+
 @media (max-width: 768px) {
+  /* Tablets and large phones */
   .app-header {
     padding: 1rem;
     flex-wrap: wrap;
   }
+  
   .page {
     padding: 1.5rem 1rem;
   }
+  
   .nav-tabs {
     order: 1;
     width: 100%;
     justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
+  
   .app-header__actions {
     margin-left: 0;
+  }
+  
+  .tiles {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.25rem;
+  }
+  
+  .form-grid.four-col {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .surface-card {
+    padding: 1.25rem;
+  }
+  
+  /* Modal improvements */
+  .modal-content {
+    margin: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+  }
+}
+
+@media (max-width: 1024px) {
+  /* Small laptops and tablets */
+  .page {
+    max-width: 100%;
+    padding: 2rem 1.5rem;
+  }
+  
+  .tiles {
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  }
+}
+
+/* Responsive utility classes at different breakpoints */
+@media (max-width: 640px) {
+  .mobile-stack {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  
+  .mobile-center {
+    text-align: center !important;
+  }
+  
+  .mobile-full-width {
+    width: 100% !important;
+  }
+  
+  .mobile-hidden {
+    display: none !important;
+  }
+  
+  .desktop-hidden {
+    display: block !important;
+  }
+}
+
+@media (min-width: 641px) {
+  .desktop-hidden {
+    display: none !important;
+  }
+  
+  .mobile-hidden {
+    display: block !important;
+  }
+}
+
+/* Touch optimizations */
+@media (hover: none) and (pointer: coarse) {
+  .btn:hover {
+    transform: none;
+  }
+  
+  .tile:hover {
+    transform: none;
+  }
+  
+  .nav-tab:hover {
+    background-color: transparent;
+  }
+  
+  /* Larger touch targets */
+  .btn, .nav-tab, .tile {
+    min-height: 44px;
+  }
+  
+  /* Better spacing for touch */
+  .btn-group {
+    gap: 1rem;
+  }
+  
+  .tiles {
+    gap: 1.25rem;
   }
 }
 

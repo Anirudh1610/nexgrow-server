@@ -186,7 +186,7 @@ const SalesManager = () => {
           <span>After Discount: ₹{formatINR(totalAfter)}</span>
           <span>Effective %: {formatPercent(effPct,{decimals:2})}%</span>
         </div>
-        <div style={{ marginTop: '.75rem', display: 'flex', gap: '.5rem' }}>
+        <div className="btn-group" style={{ marginTop: '.75rem' }}>
           {isEditing ? (
             <>
               <button className="btn" onClick={()=>saveEdit(id)}>Save</button>
@@ -223,11 +223,11 @@ const SalesManager = () => {
       <AppHeader />
       <main className="page narrow fade-in">
         <div className="surface-card elevated" style={{ marginBottom: '1.25rem' }}>
-          <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+          <div className="btn-group" style={{ marginBottom: '1rem' }}>
             <button className={viewMode === 'team' ? 'btn' : 'btn secondary'} onClick={() => setViewMode('team')}>Team Orders</button>
             <button className={viewMode === 'mine' ? 'btn' : 'btn secondary'} onClick={() => setViewMode('mine')}>My Orders</button>
           </div>
-          <h1 className="section-title" style={{ fontSize: '1.4rem' }}>{viewMode === 'team' ? 'Team Orders' : 'My Orders'}</h1>
+          <h1 className="section-title mobile-center" style={{ fontSize: 'clamp(1.2rem, 3vw, 1.4rem)' }}>{viewMode === 'team' ? 'Team Orders' : 'My Orders'}</h1>
           {loading ? (
             <p style={{ margin: 0 }}>Loading orders...</p>
           ) : sortedOrders.length === 0 ? (

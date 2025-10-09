@@ -45,9 +45,9 @@ const Dashboard = () => {
 		<div className="app-shell">
 			<AppHeader />
 			<main className="page fade-in">
-				<div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem'}}>
-                    <h1 className="section-title" style={{margin: 0}}>Dashboard</h1>
-                    <button className="btn secondary" onClick={() => navigate('/home')}>Back to Home</button>
+				<div className="mobile-stack" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem'}}>
+                    <h1 className="section-title mobile-center" style={{margin: 0, fontSize: 'clamp(1.3rem, 4vw, 1.5rem)'}}>Dashboard</h1>
+                    <button className="btn secondary mobile-full-width" onClick={() => navigate('/home')}>Back to Home</button>
                 </div>
 
 				<div className="stat-grid">

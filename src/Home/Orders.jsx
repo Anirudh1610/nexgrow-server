@@ -60,9 +60,9 @@ const Orders = () => {
       <AppHeader />
       <main className="page fade-in">
         <div className="surface-card elevated">
-          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem'}}>
+          <div className="mobile-stack" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem'}}>
             <h1 className="section-title" style={{margin: 0}}>My Orders</h1>
-            <button className="btn" onClick={() => navigate('/order-form')}>Create New Order</button>
+            <button className="btn mobile-full-width" onClick={() => navigate('/order-form')}>Create New Order</button>
           </div>
           {loading ? (
             <p>Loading orders...</p>

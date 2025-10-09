@@ -909,10 +909,10 @@ const AdminManagement = () => {
     <div style={styles.container}>
       <AppHeader showUser={false} />
       <div style={styles.header}>
-        <h1 style={styles.title}>Admin Management</h1>
+        <h1 className="mobile-center" style={{...styles.title, fontSize: 'clamp(1.3rem, 4vw, 1.55rem)'}}>Admin Management</h1>
       </div>
 
-      <div style={styles.tabs}>
+      <div className="nav-tabs" style={styles.tabs}>
         <button 
           style={{...styles.tab, ...(activeTab === 'salesmen' ? styles.activeTab : {})}}
           onClick={() => setActiveTab('salesmen')}
@@ -946,19 +946,22 @@ const AdminManagement = () => {
       </div>
 
       <div style={styles.content}>
-        <button style={styles.createButton} onClick={handleCreate}>
-          {(() => {
-            const singular = { salesmen: 'Salesman', sales_managers: 'Sales Manager', directors: 'Director', dealers: 'Dealer', products: 'Product' }[activeTab] || pretty(activeTab);
-            return `Add New ${singular}`;
-          })()}
-        </button>
-        <button
-          style={styles.sortButton}
-          onClick={() => setSortAsc(prev => !prev)}
-          title={`Sort ${sortAsc ? 'Z-A' : 'A-Z'}`}
-        >
-          Sort {sortAsc ? 'A-Z' : 'Z-A'}
-        </button>
+        <div className="btn-group" style={{marginBottom: '1rem'}}>
+          <button className="btn mobile-full-width" style={styles.createButton} onClick={handleCreate}>
+            {(() => {
+              const singular = { salesmen: 'Salesman', sales_managers: 'Sales Manager', directors: 'Director', dealers: 'Dealer', products: 'Product' }[activeTab] || pretty(activeTab);
+              return `Add New ${singular}`;
+            })()}
+          </button>
+          <button
+            className="btn secondary"
+            style={styles.sortButton}
+            onClick={() => setSortAsc(prev => !prev)}
+            title={`Sort ${sortAsc ? 'Z-A' : 'A-Z'}`}
+          >
+            Sort {sortAsc ? 'A-Z' : 'Z-A'}
+          </button>
+        </div>
         
         {loading ? (
           <div style={{textAlign: 'center', padding: '2rem'}}>Loading...</div>

@@ -45,7 +45,7 @@ const AppHeader = ({
         NEXGROW
       </div>
       {centerContent && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
           {centerContent}
         </div>
       )}
