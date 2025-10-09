@@ -74,6 +74,127 @@ function App() {
     return children;
   };
 
+  const AdminProtectedRoute = ({ user, children }) => {
+    const [userRole, setUserRole] = useState(null);
+    const [loading, setLoading] = useState(true);
+    
+    useEffect(() => {
+      const checkAdminAccess = async () => {
+        if (!user) {
+          setLoading(false);
+          return;
+        }
+        
+        try {
+          const params = {};
+          if (user.uid) params.uid = user.uid;
+          if (user.email) params.email = user.email;
+          
+          const response = await axios.get(`${SERVER_API_URL}/orders/me`, { params });
+          const userData = response.data;
+          
+          // Check if user is admin or director only (sales_manager should not have admin access)
+          const allowedRoles = ['admin', 'director'];
+          const hasAccess = allowedRoles.includes(userData.role) || userData.is_admin;
+          
+          setUserRole({ ...userData, hasAdminAccess: hasAccess });
+        } catch (error) {
+          console.error('Failed to check admin access:', error);
+          setUserRole({ hasAdminAccess: false });
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      checkAdminAccess();
+    }, [user]);
+    
+    if (!user) return <Navigate to="/login" replace />;
+    
+    if (loading) {
+      return (
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          minHeight: '100vh',
+          backgroundColor: 'var(--brand-bg)',
+          color: 'var(--brand-text)',
+          fontSize: '1.2rem'
+        }}>
+          Verifying access...
+        </div>
+      );
+    }
+    
+    if (!userRole?.hasAdminAccess) {
+      const isSalesManager = userRole?.role === 'sales_manager';
+      
+      return (
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: 'column',
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          minHeight: '100vh',
+          backgroundColor: 'var(--brand-bg)',
+          color: 'var(--brand-text)',
+          textAlign: 'center',
+          padding: '20px'
+        }}>
+          <h2 style={{ color: '#E74C3C', marginBottom: '20px' }}>🔒 Access Denied</h2>
+          <p style={{ marginBottom: '30px', fontSize: '1.1rem' }}>
+            This admin area is restricted to Directors and Admins only.
+          </p>
+          
+          {isSalesManager && (
+            <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#E8F6F3', borderRadius: '5px', color: '#1E8449' }}>
+              <p style={{ margin: '0 0 10px 0', fontWeight: 'bold' }}>💡 Sales Manager Access</p>
+              <p style={{ margin: 0, fontSize: '0.9rem' }}>
+                As a Sales Manager, use your dedicated manager dashboard to view and manage team orders.
+              </p>
+            </div>
+          )}
+          
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+            {isSalesManager && (
+              <button 
+                onClick={() => window.location.href = '/manager'}
+                style={{
+                  padding: '12px 24px',
+                  backgroundColor: '#2E86C1',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '5px',
+                  fontSize: '1rem',
+                  cursor: 'pointer'
+                }}
+              >
+                📊 Manager Dashboard
+              </button>
+            )}
+            <button 
+              onClick={() => window.location.href = '/home'}
+              style={{
+                padding: '12px 24px',
+                backgroundColor: '#2C3E50',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: '5px',
+                fontSize: '1rem',
+                cursor: 'pointer'
+              }}
+            >
+              Go to Home
+            </button>
+          </div>
+        </div>
+      );
+    }
+    
+    return children;
+  };
+
   if (loading) {
     return (
       <div style={{ 
@@ -103,10 +224,10 @@ function App() {
         <Route path="/manager" element={<ProtectedRoute user={user}><SalesManager /></ProtectedRoute>} />
         <Route path="/forecast" element={<ProtectedRoute user={user}><ForecastForm /></ProtectedRoute>} />
         <Route path="/forecast-view" element={<ProtectedRoute user={user}><ForecastView /></ProtectedRoute>} />
-        <Route path="/admin/orders" element={<ProtectedRoute user={user}><AdminOrders /></ProtectedRoute>} />
-        <Route path="/admin/discount-approvals" element={<ProtectedRoute user={user}><AdminDiscountApprovals /></ProtectedRoute>} />
-        <Route path="/admin/management" element={<ProtectedRoute user={user}><AdminManagement /></ProtectedRoute>} />
-        <Route path="/admin/forecasts" element={<ProtectedRoute user={user}><DirectorForecasts /></ProtectedRoute>} />
+        <Route path="/admin/orders" element={<AdminProtectedRoute user={user}><AdminOrders /></AdminProtectedRoute>} />
+        <Route path="/admin/discount-approvals" element={<AdminProtectedRoute user={user}><AdminDiscountApprovals /></AdminProtectedRoute>} />
+        <Route path="/admin/management" element={<AdminProtectedRoute user={user}><AdminManagement /></AdminProtectedRoute>} />
+        <Route path="/admin/forecasts" element={<AdminProtectedRoute user={user}><DirectorForecasts /></AdminProtectedRoute>} />
       </Routes>
     </Router>
   );
