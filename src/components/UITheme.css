@@ -136,6 +136,65 @@ body, html, #root {
   color: var(--brand-text);
   transition: var(--transition-base);
   box-shadow: var(--brand-shadow-sm);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Fix dropdown width issues */
+select.input {
+  min-width: 0; /* Prevent expansion */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.5em 1.5em;
+  padding-right: 2.5rem;
+}
+
+/* Fix dropdown options */
+select.input option {
+  padding: 0.5rem;
+  background-color: #fff;
+  color: var(--brand-text);
+}
+
+/* Form layout utilities */
+.form-row.full-width {
+  grid-column: 1 / -1;
+}
+
+.form-row.half-width {
+  flex: 0 0 calc(50% - 0.625rem);
+}
+
+.form-row.quarter-width {
+  flex: 0 0 calc(25% - 0.9375rem);
+}
+
+/* Dropdown constraint utilities */
+.dropdown-sm {
+  min-width: 100px !important;
+  max-width: 150px !important;
+}
+
+.dropdown-md {
+  min-width: 150px !important;
+  max-width: 250px !important;
+}
+
+.dropdown-lg {
+  min-width: 200px !important;
+  max-width: 350px !important;
+}
+
+.dropdown-auto {
+  min-width: auto !important;
+  max-width: 100% !important;
+  width: 100%;
 }
 
 .input:focus, select.input:focus, textarea.input:focus {
@@ -607,14 +666,24 @@ body, html, #root {
   
   .form-grid.two-col {
     grid-template-columns: 1fr;
+    gap: 1rem;
   }
   
   .form-grid.three-col {
     grid-template-columns: 1fr;
+    gap: 1rem;
   }
   
   .form-grid.four-col {
     grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  /* Constrain form elements on mobile */
+  .form-row .input,
+  .form-row select.input {
+    min-width: 0;
+    max-width: 100%;
   }
   
   /* Better button groups */
@@ -667,8 +736,26 @@ body, html, #root {
     gap: 1.25rem;
   }
   
+  /* Form grid responsiveness for tablets */
+  .form-grid.two-col {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .form-grid.three-col {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+  
   .form-grid.four-col {
     grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+  
+  /* Constrain dropdowns on tablets */
+  select.input {
+    max-width: 100%;
+    min-width: 120px; /* Minimum readable width */
   }
   
   .surface-card {
@@ -684,7 +771,7 @@ body, html, #root {
 }
 
 @media (max-width: 1024px) {
-  /* Small laptops and tablets */
+  /* Small laptops and large tablets */
   .page {
     max-width: 100%;
     padding: 2rem 1.5rem;
@@ -692,6 +779,57 @@ body, html, #root {
   
   .tiles {
     grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  }
+  
+  /* Optimize form grids for medium screens */
+  .form-grid.three-col {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.25rem;
+  }
+  
+  .form-grid.four-col {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+  }
+  
+  /* Better dropdown sizing */
+  select.input {
+    min-width: 150px;
+    max-width: 300px;
+  }
+}
+
+/* Large screens - Desktop optimization */
+@media (min-width: 1200px) {
+  .page {
+    max-width: 1280px;
+    padding: 3rem 2rem;
+  }
+  
+  /* Optimal form grids for large screens */
+  .form-grid.two-col {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+  
+  .form-grid.three-col {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+  }
+  
+  .form-grid.four-col {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+  }
+  
+  /* Better dropdown constraints for large screens */
+  select.input {
+    min-width: 180px;
+    max-width: 400px;
+  }
+  
+  .tiles {
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
   }
 }
 
