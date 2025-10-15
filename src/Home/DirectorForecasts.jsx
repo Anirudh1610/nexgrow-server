@@ -212,6 +212,12 @@ const DirectorForecasts = () => {
                                         Qty: {product.quantity}
                                         {product.dealer_name && ` → ${product.dealer_name}`}
                                       </div>
+                                      <div style={{ color: 'var(--brand-text-soft)' }}>
+                                        Unit Cost: {typeof product.unit_cost === 'number' ? `₹${product.unit_cost.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—'}
+                                      </div>
+                                      <div style={{ color: 'var(--brand-text-soft)' }}>
+                                        Total Cost: {typeof product.total_cost === 'number' ? `₹${product.total_cost.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—'}
+                                      </div>
                                     </div>
                                   ))}
                                   {forecast.products.length > 3 && (

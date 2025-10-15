@@ -222,9 +222,13 @@ const ForecastForm = () => {
                       fontSize: '1rem'
                     }}
                   >
-                    {months.map((month, index) => (
-                      <option key={index + 1} value={index + 1}>{month}</option>
-                    ))}
+                    {months.map((month, index) => {
+                      // Only allow current or future months for the selected year
+                      const isPast = (selectedYear < currentYear) || (selectedYear === currentYear && (index + 1) < currentMonth);
+                      return (
+                        <option key={index + 1} value={index + 1} disabled={isPast}>{month}</option>
+                      );
+                    })}
                   </select>
                 </div>
 
