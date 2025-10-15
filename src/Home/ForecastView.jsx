@@ -43,7 +43,6 @@ const ForecastView = () => {
 
 
 
-
   return (
     <div className="app-shell" style={{ minHeight: '100vh' }}>
       <AppHeader />
@@ -145,6 +144,12 @@ const ForecastView = () => {
                                 </div>
                                 <div style={{ fontSize: '0.8rem', color: 'var(--brand-text-soft)' }}>
                                   Quantity: {product.quantity}
+                                </div>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--brand-text-soft)' }}>
+                                  Unit Cost: {typeof product.unit_cost === 'number' ? `₹${product.unit_cost.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—'}
+                                </div>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--brand-text-soft)' }}>
+                                  Total Cost: {typeof product.total_cost === 'number' ? `₹${product.total_cost.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—'}
                                 </div>
                               </div>
                               {product.dealer_name && (

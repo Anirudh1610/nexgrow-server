@@ -4,14 +4,20 @@ import axios from 'axios';
 import { SERVER_API_URL } from '../Auth/APIConfig';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../Auth/AuthConfig';
-import { formatINR, formatPercent, formatOrderDisplayId, computeDisplaySeqMap } from './numberFormat';
+import { formatINR, formatPercent, formatOrderDisplayId, computeDisplaySeqMap, calculateGST } from './numberFormat';
 import AppHeader from '../components/AppHeader';
 
 const Orders = () => {
-  const [orders, setOrders] = useState([]);
+  const [allOrders, setAllOrders] = useState([]);
+  const [displayedOrders, setDisplayedOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [displayCount, setDisplayCount] = useState(10);
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
+  
+  const ORDERS_PER_PAGE = 10;
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (currentUser) => {
@@ -20,38 +26,68 @@ const Orders = () => {
     return () => unsub();
   }, []);
 
-  useEffect(() => {
-    const fetchOrders = async () => {
-      try {
-        // Fetch only the current user's orders
-        let params = {};
-        const nexgrowUser = JSON.parse(localStorage.getItem('nexgrow_user')||'null');
-        if (nexgrowUser?.uid) params.uid = nexgrowUser.uid;
-        if (nexgrowUser?.email) params.email = nexgrowUser.email;
-        const response = await axios.get(`${SERVER_API_URL}/orders/my-orders`, { params });
-        let data = response.data || [];
-        const getTs = (o) => {
-          const raw = o.created_at || o.createdAt || o.updated_at || o.date || o.timestamp || null;
-          const t = raw ? new Date(raw).getTime() : 0;
-          if (t && !isNaN(t)) return t;
-          if (o._id && typeof o._id === 'string' && o._id.length >= 8) {
-            try { return parseInt(o._id.substring(0,8),16) * 1000; } catch { return 0; }
-          }
-          return 0;
-        };
-        const withTs = data.map(o => ({ __ts: getTs(o), o }));
-        withTs.sort((a,b)=> b.__ts - a.__ts);
-        const allZero = withTs.every(x=>x.__ts===0);
-        data = allZero ? data.slice().reverse() : withTs.map(x=>x.o);
-        setOrders(data);
-      } catch (error) {
-        console.error('Error fetching orders:', error);
-        setOrders([]);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch all orders first (for sorting), then we'll paginate client-side
+      let params = {};
+      const nexgrowUser = JSON.parse(localStorage.getItem('nexgrow_user')||'null');
+      if (nexgrowUser?.uid) params.uid = nexgrowUser.uid;
+      if (nexgrowUser?.email) params.email = nexgrowUser.email;
+      
+      const response = await axios.get(`${SERVER_API_URL}/orders/my-orders`, { params });
+      let data = response.data || [];
+      
+      const getTs = (o) => {
+        const raw = o.created_at || o.createdAt || o.updated_at || o.date || o.timestamp || null;
+        const t = raw ? new Date(raw).getTime() : 0;
+        if (t && !isNaN(t)) return t;
+        if (o._id && typeof o._id === 'string' && o._id.length >= 8) {
+          try { return parseInt(o._id.substring(0,8),16) * 1000; } catch { return 0; }
+        }
+        return 0;
+      };
+      
+      // Sort orders by timestamp (most recent first)
+      const withTs = data.map(o => ({ __ts: getTs(o), o }));
+      withTs.sort((a,b)=> b.__ts - a.__ts);
+      const allZero = withTs.every(x=>x.__ts===0);
+      const sortedData = allZero ? data.slice().reverse() : withTs.map(x=>x.o);
+      
+      // Store all orders
+      setAllOrders(sortedData);
+      
+      // Display only the first 10 orders
+      setDisplayedOrders(sortedData.slice(0, ORDERS_PER_PAGE));
+      setDisplayCount(ORDERS_PER_PAGE);
+      setHasMore(sortedData.length > ORDERS_PER_PAGE);
+      
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      setAllOrders([]);
+      setDisplayedOrders([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  const loadMoreOrders = () => {
+    setLoadingMore(true);
+    
+    // Simulate loading delay for better UX
+    setTimeout(() => {
+      const newDisplayCount = displayCount + ORDERS_PER_PAGE;
+      const newDisplayedOrders = allOrders.slice(0, newDisplayCount);
+      
+      setDisplayedOrders(newDisplayedOrders);
+      setDisplayCount(newDisplayCount);
+      setHasMore(newDisplayCount < allOrders.length);
+      setLoadingMore(false);
+    }, 300);
+  };
+
+  useEffect(() => {
     fetchOrders();
   }, []);
 
@@ -66,11 +102,11 @@ const Orders = () => {
           </div>
           {loading ? (
             <p>Loading orders...</p>
-          ) : orders.length === 0 ? (
+          ) : displayedOrders.length === 0 ? (
             <p>No orders found. <span onClick={() => navigate('/order-form')} style={{color: 'var(--brand-green)', cursor: 'pointer', fontWeight: '600'}}>Create one now.</span></p>
           ) : (
             <div className="order-list">
-              {(() => { const seqMap = computeDisplaySeqMap(orders); return orders.map((order, idx) => {
+              {(() => { const seqMap = computeDisplaySeqMap(displayedOrders); return displayedOrders.map((order, idx) => {
                 // ... (rest of the mapping logic is complex and preserved)
                 const productsArr = Array.isArray(order.products) ? order.products : [];
                 let totalBase = 0; let totalDiscountAmtExact = 0; let hasExplicitLineDiscount = false;
@@ -141,7 +177,36 @@ const Orders = () => {
                     <div className="order-metrics">
                       <span>Total: {formatINR(totalBase)}</span>
                       <span>Discount: {formatINR(totalDiscountAmtExact)}</span>
-                      <span>Final: {formatINR(totalAfter)}</span>
+                      <span>Subtotal: {formatINR(totalAfter)}</span>
+                      {(() => {
+                        // Calculate GST - use stored value or calculate from product data
+                        let gstTotal = order.gst_total || 0;
+                        let grandTotal = order.grand_total || totalAfter;
+                        
+                        // If no stored GST, try to calculate from products
+                        if (gstTotal === 0 && computedLines.length > 0) {
+                          gstTotal = computedLines.reduce((sum, line) => {
+                            // Try to get GST percentage from product data
+                            const gstPercentage = line.gst_percentage || 0;
+                            if (gstPercentage > 0) {
+                              const gstAmount = calculateGST(line.discounted, gstPercentage);
+                              return sum + gstAmount;
+                            }
+                            return sum;
+                          }, 0);
+                          grandTotal = totalAfter + gstTotal;
+                        }
+                        
+                        if (gstTotal > 0) {
+                          return (
+                            <>
+                              <span>GST: {formatINR(gstTotal)}</span>
+                              <span><strong>Grand Total: {formatINR(grandTotal)}</strong></span>
+                            </>
+                          );
+                        }
+                        return <span>Final: {formatINR(totalAfter)}</span>;
+                      })()}
                       <span>Effective: {formatPercent(effectivePct,{decimals:1})}%</span>
                     </div>
                   </div>
@@ -149,6 +214,28 @@ const Orders = () => {
               }); })()}
             </div>
           )}
+          
+          {/* Load More Button */}
+          {!loading && displayedOrders.length > 0 && hasMore && (
+            <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
+              <button 
+                className="btn secondary mobile-full-width" 
+                onClick={loadMoreOrders}
+                disabled={loadingMore}
+                style={{ minWidth: '150px' }}
+              >
+                {loadingMore ? 'Loading...' : 'Load More Orders'}
+              </button>
+            </div>
+          )}
+          
+          {/* Show total loaded count */}
+          {!loading && displayedOrders.length > 0 && (
+            <div style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.9rem', color: 'var(--brand-text-soft)' }}>
+              Showing {displayedOrders.length} of {allOrders.length} orders {!hasMore && '(all loaded)'}
+            </div>
+          )}
+          
           <div style={{ marginTop: '1.5rem' }}>
             <button className="btn secondary" onClick={() => navigate('/home')}>Back to Home</button>
           </div>

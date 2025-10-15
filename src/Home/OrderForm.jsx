@@ -4,7 +4,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { SERVER_API_URL } from '../Auth/APIConfig';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { formatINR, formatPercent } from './numberFormat';
+import { formatINR, formatPercent, calculateGST, calculateTotalWithGST } from './numberFormat';
 
 const OrderForm = ({ onSignOut }) => {
   const navigate = useNavigate();
@@ -245,7 +245,7 @@ const OrderForm = ({ onSignOut }) => {
     setProductEntries(prev => prev.filter((_, i) => i !== idx));
   };
 
-  // Calculate totals & per-product discounts
+  // Calculate totals & per-product discounts with GST
   const totalPrice = productEntries.reduce((sum, entry) => sum + (entry.priceDetails?.total_price || 0), 0);
   const totalDiscountAmount = productEntries.reduce((sum, entry) => {
     if (!entry.priceDetails) return sum;
@@ -253,6 +253,22 @@ const OrderForm = ({ onSignOut }) => {
     return sum + (entry.priceDetails.total_price * Math.min(Math.max(pct,0),30) / 100);
   }, 0);
   const discountedTotal = totalPrice - totalDiscountAmount;
+  
+  // Calculate GST on discounted amounts
+  const totalGSTAmount = productEntries.reduce((sum, entry) => {
+    if (!entry.priceDetails || !entry.product) return sum;
+    const selectedProduct = products.find(p => (p._id || p.id) === entry.product);
+    const gstPercentage = selectedProduct?.gst_percentage || 0;
+
+    const baseAmount = entry.priceDetails.total_price;
+    const discountAmount = baseAmount * Math.min(Math.max(Number(entry.discount) || 0, 0), 30) / 100;
+    const discountedAmount = baseAmount - discountAmount;
+    const gstAmount = calculateGST(discountedAmount, gstPercentage);
+
+    return sum + gstAmount;
+  }, 0);
+  
+  const grandTotal = discountedTotal + totalGSTAmount;
   const aggregateDiscountPct = totalPrice > 0 ? (totalDiscountAmount / totalPrice) * 100 : 0;
   const anyDiscount = productEntries.some(e => (Number(e.discount) || 0) > 0);
 
@@ -277,13 +293,25 @@ const OrderForm = ({ onSignOut }) => {
       }
     }
     // Prepare order data (store base price per line; overall discount aggregated)
-    const orderProducts = productEntries.map(entry => ({
-      product_id: entry.productSize,
-      quantity: entry.quantity,
-      price: entry.priceDetails.total_price,
-      discount_pct: Number(entry.discount) || 0,
-      discounted_price: (()=>{ const base=entry.priceDetails.total_price; const pct=Number(entry.discount)||0; return base - (base*pct/100); })()
-    }));
+    const orderProducts = productEntries.map(entry => {
+      const selectedProduct = products.find(p => (p._id || p.id) === entry.product);
+      const gstPercentage = selectedProduct?.gst_percentage || 0;
+      const basePrice = entry.priceDetails.total_price;
+      const discountAmount = basePrice * (Number(entry.discount) || 0) / 100;
+      const discountedPrice = basePrice - discountAmount;
+      const gstAmount = calculateGST(discountedPrice, gstPercentage);
+      
+      return {
+        product_id: entry.productSize,
+        quantity: entry.quantity,
+        price: basePrice,
+        discount_pct: Number(entry.discount) || 0,
+        discounted_price: discountedPrice,
+        gst_percentage: gstPercentage,
+        gst_amount: gstAmount,
+        total_with_gst: discountedPrice + gstAmount
+      };
+    });
     const resolvedSalesmanId = me?._id || salesman;
     const orderData = {
       state,
@@ -293,6 +321,8 @@ const OrderForm = ({ onSignOut }) => {
       total_price: totalPrice,
       discount: Number(aggregateDiscountPct.toFixed(2)),
       discounted_total: discountedTotal,
+      gst_total: totalGSTAmount,
+      grand_total: grandTotal,
       discount_status: anyDiscount ? 'pending' : 'approved'
     };
     try {
@@ -300,18 +330,24 @@ const OrderForm = ({ onSignOut }) => {
       const summaryProducts = productEntries.map(entry => {
         const productObj = (products || []).find(p => (p._id || p.id) === entry.product) || {};
         const packingObj = entry.packingSizes.find(ps => (ps._id || ps.id) === entry.productSize) || {};
+        const gstPercentage = productObj?.gst_percentage || 0;
         const base = entry.priceDetails?.total_price || 0;
         const pct = Number(entry.discount) || 0;
         const lineDiscountAmt = base * pct / 100;
         const after = base - lineDiscountAmt;
+        const gstAmount = calculateGST(after, gstPercentage);
+        const totalWithGst = after + gstAmount;
         return {
           name: productObj.name || 'Product',
-            packing: packingObj.packing_size || packingObj.size || packingObj.name || '',
+          packing: packingObj.packing_size || packingObj.size || packingObj.name || '',
           quantity: entry.quantity,
           unitPrice: entry.priceDetails?.unit_price || 0,
           lineTotal: base,
           discountPct: pct,
-          discountedLineTotal: after
+          discountedLineTotal: after,
+          gstPercentage,
+          gstAmount,
+          totalWithGst
         };
       });
       setOrderSummary({
@@ -321,6 +357,8 @@ const OrderForm = ({ onSignOut }) => {
         discount: Number(aggregateDiscountPct.toFixed(2)),
         totalPrice,
         discountedTotal,
+        gstTotal: totalGSTAmount,
+        grandTotal,
         totalDiscountAmount,
         products: summaryProducts,
         discountStatus: anyDiscount ? 'pending' : 'approved'
@@ -577,7 +615,23 @@ const OrderForm = ({ onSignOut }) => {
                     </div>
                     {entry.priceDetails && (
                       <div style={{marginTop:'.75rem',fontSize:'.8rem',fontWeight:600,color:'var(--brand-text)'}}>
-                        Line Total: {formatINR(base)}{pct>0 && <span style={{color: '#b91c1c'}}> - {pct}% ({formatINR(lineDiscountAmt)})</span>} → <span style={{color:'var(--brand-green-dark)', fontWeight: 700}}>{formatINR(after)}</span>
+                        <div>
+                          Line Total: {formatINR(base)}{pct>0 && <span style={{color: '#b91c1c'}}> - {pct}% ({formatINR(lineDiscountAmt)})</span>} → <span style={{color:'var(--brand-green-dark)', fontWeight: 700}}>{formatINR(after)}</span>
+                        </div>
+                        {(() => {
+                          const selectedProduct = products.find(p => (p._id || p.id) === entry.product);
+                          const gstPercentage = selectedProduct?.gst_percentage || 0;
+                          if (gstPercentage > 0) {
+                            const gstAmount = calculateGST(after, gstPercentage);
+                            const totalWithGst = after + gstAmount;
+                            return (
+                              <div style={{marginTop: '0.25rem', fontSize: '0.75rem', color: 'var(--brand-text-soft)'}}>
+                                GST ({gstPercentage}%): {formatINR(gstAmount)} | <strong>Total: {formatINR(totalWithGst)}</strong>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                     )}
                     <div className="btn-group" style={{marginTop:'1rem'}}>
@@ -595,7 +649,9 @@ const OrderForm = ({ onSignOut }) => {
             <div className="surface-card" style={{gridColumn:'1 / -1',display:'flex',flexWrap:'wrap',gap:'1rem',alignItems:'center',padding:'1.25rem', background: 'var(--brand-surface-alt)'}}>
               <div style={{fontSize:'.9rem',fontWeight:600,color:'var(--brand-text-soft)'}}>Total Before Discount: <span style={{color: 'var(--brand-text)', fontWeight: 700}}>{formatINR(totalPrice)}</span></div>
               {anyDiscount && <div style={{fontSize:'.9rem',fontWeight:600,color:'#b91c1c'}}>Total Discount: {formatINR(totalDiscountAmount)}</div>}
-              {anyDiscount && <div style={{fontSize:'1.1rem',fontWeight:700,color:'var(--brand-green-dark)'}}>Grand Total: {formatINR(discountedTotal)}</div>}
+              <div style={{fontSize:'.9rem',fontWeight:600,color:'var(--brand-text-soft)'}}>Subtotal: <span style={{color: 'var(--brand-text)', fontWeight: 700}}>{formatINR(discountedTotal)}</span></div>
+              {totalGSTAmount > 0 && <div style={{fontSize:'.9rem',fontWeight:600,color:'var(--brand-text-soft)'}}>GST: <span style={{color: 'var(--brand-text)', fontWeight: 700}}>{formatINR(totalGSTAmount)}</span></div>}
+              <div style={{fontSize:'1.1rem',fontWeight:700,color:'var(--brand-green-dark)'}}>Grand Total: {formatINR(grandTotal)}</div>
             </div>
             <div style={{gridColumn:'1 / -1',display:'flex',gap:'.75rem',marginTop:'.5rem'}}>
               <button type="submit" className="btn" style={{flex: 1}}>Submit Order</button>
@@ -619,14 +675,24 @@ const OrderForm = ({ onSignOut }) => {
                 <strong style={{fontSize:'.9rem'}}>Products Ordered</strong>
                 <ul style={{margin:'8px 0 0', paddingLeft: '20px', fontSize:'.85rem', listStyle: 'disc'}}>
                   {orderSummary.products.map((p,i)=>(
-                    <li key={i} style={{marginBottom: '8px'}}>{p.name}{p.packing?` (${p.packing})`:''} - Qty: {p.quantity} @ {formatINR(p.unitPrice)} = {formatINR(p.lineTotal)}{p.discountPct>0 && <> - {p.discountPct}% → <strong>{formatINR(p.discountedLineTotal)}</strong></>}</li>
+                    <li key={i} style={{marginBottom: '8px'}}>
+                      {p.name}{p.packing?` (${p.packing})`:''} - Qty: {p.quantity} @ {formatINR(p.unitPrice)} = {formatINR(p.lineTotal)}
+                      {p.discountPct>0 && <> - {p.discountPct}% → <strong>{formatINR(p.discountedLineTotal)}</strong></>}
+                      {p.gstPercentage > 0 && (
+                        <div style={{fontSize: '0.8rem', color: 'var(--brand-text-soft)', marginTop: '2px'}}>
+                          GST ({p.gstPercentage}%): {formatINR(p.gstAmount)} | Total: <strong>{formatINR(p.totalWithGst)}</strong>
+                        </div>
+                      )}
+                    </li>
                   ))}
                 </ul>
               </div>
               <div style={{fontSize:'1rem',fontWeight:600,display:'grid',rowGap:6, background: 'var(--brand-surface-alt)', padding: '1rem', borderRadius: 'var(--radius-md)'}}>
                 <span>Total Before Discount: {formatINR(orderSummary.totalPrice)}</span>
                 {orderSummary.totalDiscountAmount>0 && <span style={{color: '#b91c1c'}}>Total Discount: -{formatINR(orderSummary.totalDiscountAmount)}</span>}
-                <span style={{fontSize: '1.1rem', fontWeight: 700, color: 'var(--brand-green-dark)'}}>Grand Total: {formatINR(orderSummary.discountedTotal)}</span>
+                <span>Subtotal: {formatINR(orderSummary.discountedTotal)}</span>
+                {orderSummary.gstTotal > 0 && <span>GST: {formatINR(orderSummary.gstTotal)}</span>}
+                <span style={{fontSize: '1.1rem', fontWeight: 700, color: 'var(--brand-green-dark)'}}>Grand Total: {formatINR(orderSummary.grandTotal)}</span>
               </div>
               <div className="modal-actions">
                 <button className="btn" onClick={handleCloseSummary}>Close</button>

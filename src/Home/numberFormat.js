@@ -14,6 +14,18 @@ export const formatPercent = (value, {decimals=2} = {}) => {
   return new Intl.NumberFormat('en-IN', { maximumFractionDigits: decimals, minimumFractionDigits: 0 }).format(num);
 };
 
+// GST calculation helpers
+export const calculateGST = (baseAmount, gstPercentage) => {
+  if (!baseAmount || !gstPercentage) return 0;
+  return (Number(baseAmount) * Number(gstPercentage)) / 100;
+};
+
+export const calculateTotalWithGST = (baseAmount, gstPercentage) => {
+  const base = Number(baseAmount) || 0;
+  const gst = calculateGST(base, gstPercentage);
+  return base + gst;
+};
+
 // Helpers to build display order IDs
 const parseObjectIdTime = (id) => {
   if (typeof id === 'string' && id.length >= 8) {

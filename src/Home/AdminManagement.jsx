@@ -401,7 +401,7 @@ const AdminManagement = () => {
     };
 
     return (
-      <div style={styles.tableContainer}>
+      <div className="tableContainer" style={styles.tableContainer}>
   <h4 style={styles.sectionTitle}>Active {pretty(activeTab)}</h4>
         <table style={styles.table}>
           <thead>
@@ -503,7 +503,7 @@ const AdminManagement = () => {
     products:['Name','Category','Packing Size','Price per Bottle','GST %'] 
   }[activeTab];
     return (
-      <div style={{ marginTop:'2rem' }}>
+      <div className="tableContainer" style={{ marginTop:'2rem', ...styles.tableContainer }}>
   <h4 style={styles.sectionTitle}>Inactive {pretty(activeTab)}</h4>
         <table style={styles.table}>
           <thead>
@@ -853,21 +853,21 @@ const AdminManagement = () => {
 
   const styles = {
     container: { display:'flex', flexDirection:'column', minHeight:'100vh', background:'var(--brand-bg)', color:'var(--brand-text)' },
-    header: { textAlign:'center', marginBottom:'1.25rem' },
-    title: { fontSize:'1.55rem', fontWeight:700, letterSpacing:'.5px', margin:0, background:'linear-gradient(90deg,#128d3b,#2fbf62)', WebkitBackgroundClip:'text', color:'transparent' },
-    tabs: { display:'flex', justifyContent:'center', gap:'.75rem', marginBottom:'1.25rem', flexWrap:'wrap' },
-    tab: { padding:'.65rem 1.1rem', background:'#fff', color:'var(--brand-green-dark)', border:'1px solid var(--brand-green)', borderRadius:'var(--radius-md)', cursor:'pointer', fontSize:'.75rem', fontWeight:600, letterSpacing:'.65px', transition:'var(--transition-base)' },
+    header: { textAlign:'center', marginBottom:'0', backgroundColor:'#ffffff', paddingTop:'1rem', paddingBottom:'.5rem' },
+    title: { fontSize:'clamp(1.2rem, 4vw, 1.55rem)', fontWeight:700, letterSpacing:'.3px', margin:0, background:'linear-gradient(90deg,#128d3b,#2fbf62)', WebkitBackgroundClip:'text', color:'transparent' },
+    tabs: { display:'flex', justifyContent:'center', gap:'.5rem', marginBottom:'1rem', flexWrap:'wrap', position:'sticky', top:'0', zIndex:50, backgroundColor:'#ffffff', paddingTop:'.5rem', paddingBottom:'.75rem', borderBottom:'1px solid #e0e0e0' },
+    tab: { padding:'.5rem .8rem', background:'#fff', color:'var(--brand-green-dark)', border:'1px solid var(--brand-green)', borderRadius:'var(--radius-md)', cursor:'pointer', fontSize:'.7rem', fontWeight:500, letterSpacing:'.3px', transition:'var(--transition-base)' },
     activeTab: { background:'var(--brand-green)', color:'#fff', boxShadow:'var(--brand-shadow-sm)' },
-    content: { background:'var(--brand-surface)', border:'1px solid var(--brand-border)', borderRadius:'var(--radius-lg)', padding:'1.75rem 1.5rem 2rem', maxWidth:'1200px', margin:'0 auto', width:'100%', boxShadow:'var(--brand-shadow-sm)' },
-    createButton: { background:'var(--brand-green)', color:'#fff', border:'1px solid var(--brand-green)', padding:'.7rem 1.2rem', borderRadius:'var(--radius-md)', fontSize:'.8rem', fontWeight:600, letterSpacing:'.5px', cursor:'pointer', boxShadow:'var(--brand-shadow-sm)', transition:'var(--transition-base)' },
-    tableContainer: { overflowX:'auto', marginTop:'.5rem' },
-    table: { width:'100%', borderCollapse:'collapse', fontSize:'.75rem' },
-    th: { background:'var(--brand-surface-alt)', padding:'.6rem .75rem', textAlign:'left', borderBottom:'1px solid var(--brand-border)', fontWeight:600, fontSize:'.6rem', letterSpacing:'.8px', textTransform:'uppercase', color:'var(--brand-text-soft)', position:'relative' },
+    content: { background:'var(--brand-surface)', border:'1px solid var(--brand-border)', borderRadius:'var(--radius-lg)', padding:'1rem', maxWidth:'100%', margin:'0 0 1rem 0', width:'100%', boxShadow:'var(--brand-shadow-sm)', overflowX:'visible' },
+    createButton: { background:'var(--brand-green)', color:'#fff', border:'1px solid var(--brand-green)', padding:'.6rem 1rem', borderRadius:'var(--radius-md)', fontSize:'.75rem', fontWeight:600, letterSpacing:'.3px', cursor:'pointer', boxShadow:'var(--brand-shadow-sm)', transition:'var(--transition-base)' },
+    tableContainer: { overflowX:'auto', marginTop:'.5rem', width:'100%', border:'1px solid #ddd', borderRadius:'4px', padding:'.5rem' },
+    table: { borderCollapse:'collapse', fontSize:'.7rem', width:'100%' },
+    th: { background:'var(--brand-surface-alt)', padding:'.5rem', textAlign:'left', borderBottom:'1px solid var(--brand-border)', fontWeight:600, fontSize:'.55rem', textTransform:'uppercase', color:'var(--brand-text-soft)', whiteSpace:'nowrap', minWidth:'120px' },
     tr: { borderBottom:'1px solid var(--brand-border)' },
-    td: { padding:'.6rem .75rem', verticalAlign:'middle' },
-    editButton: { background:'var(--brand-green)', color:'#fff', border:'none', padding:'.45rem .7rem', borderRadius:'var(--radius-sm)', cursor:'pointer', fontSize:'.65rem', fontWeight:600, marginRight:'.4rem' },
-    deactivateButton: { background:'#ff9800', color:'#fff', border:'none', padding:'.45rem .7rem', borderRadius:'var(--radius-sm)', cursor:'pointer', fontSize:'.65rem', fontWeight:600 },
-    activateButton: { background:'#17a2b8', color:'#fff', border:'none', padding:'.45rem .7rem', borderRadius:'var(--radius-sm)', cursor:'pointer', fontSize:'.65rem', fontWeight:600 },
+    td: { padding:'.5rem', verticalAlign:'middle', fontSize:'.65rem', whiteSpace:'nowrap', minWidth:'120px' },
+    editButton: { background:'var(--brand-green)', color:'#fff', border:'none', padding:'.5rem .75rem', borderRadius:'var(--radius-sm)', cursor:'pointer', fontSize:'.75rem', fontWeight:600, marginRight:'.25rem', minHeight:'36px' },
+    deactivateButton: { background:'#ff9800', color:'#fff', border:'none', padding:'.5rem .75rem', borderRadius:'var(--radius-sm)', cursor:'pointer', fontSize:'.75rem', fontWeight:600, minHeight:'36px' },
+    activateButton: { background:'#17a2b8', color:'#fff', border:'none', padding:'.5rem .75rem', borderRadius:'var(--radius-sm)', cursor:'pointer', fontSize:'.75rem', fontWeight:600, minHeight:'36px' },
     modal: { position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 },
     modalContent: { background:'#fff', padding:'1.75rem 1.5rem 2rem', borderRadius:'var(--radius-xl)', maxWidth:'520px', width:'95%', maxHeight:'85vh', overflow:'auto', boxShadow:'var(--brand-shadow-lg)' },
     form: { display:'flex', flexDirection:'column', gap:'.85rem', marginTop:'.75rem' },
@@ -906,7 +906,7 @@ const AdminManagement = () => {
   };
 
   return (
-    <div style={styles.container}>
+    <div className="admin-management" style={styles.container}>
       <AppHeader showUser={false} />
       <div style={styles.header}>
         <h1 className="mobile-center" style={{...styles.title, fontSize: 'clamp(1.3rem, 4vw, 1.55rem)'}}>Admin Management</h1>

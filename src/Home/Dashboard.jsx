@@ -1,117 +1,97 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-import { SERVER_API_URL } from '../Auth/APIConfig';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppHeader from '../components/AppHeader';
-import { formatINR, formatPercent } from './numberFormat';
 import '../components/UITheme.css';
 
 const Dashboard = () => {
-	const [orders, setOrders] = useState([]);
-	const [loading, setLoading] = useState(true);
 	const navigate = useNavigate();
-
-	useEffect(() => {
-		const fetchOrders = async () => {
-			try {
-				const response = await axios.get(`${SERVER_API_URL}/orders`);
-				setOrders(response.data || []);
-			} catch (error) {
-				setOrders([]);
-			} finally {
-				setLoading(false);
-			}
-		};
-		fetchOrders();
-	}, []);
-
-	const totalSales = orders.reduce((sum, order) => {
-		if (order.total_price) return sum + order.total_price;
-		if (order.products && Array.isArray(order.products)) {
-			return sum + order.products.reduce((pSum, p) => pSum + (p.price || 0), 0);
-		}
-		return sum;
-	}, 0);
-
-	const discountSavings = orders.reduce((sum, o) => {
-		const t = o.total_price || 0;
-		if (o.discounted_total != null) return sum + (t - o.discounted_total);
-		const d = o.discount || 0;
-		return sum + (t - (t - (t * d) / 100));
-	}, 0);
-	const approvedDiscounts = orders.filter(o => o.discount_status === 'approved').length;
 
 	return (
 		<div className="app-shell">
 			<AppHeader />
 			<main className="page fade-in">
 				<div className="mobile-stack" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem'}}>
-                    <h1 className="section-title mobile-center" style={{margin: 0, fontSize: 'clamp(1.3rem, 4vw, 1.5rem)'}}>Dashboard</h1>
+                    <h1 className="section-title mobile-center" style={{margin: 0, fontSize: 'clamp(1.3rem, 4vw, 1.5rem)', color: '#999'}}>Dashboard</h1>
                     <button className="btn secondary mobile-full-width" onClick={() => navigate('/home')}>Back to Home</button>
                 </div>
 
-				<div className="stat-grid">
-					<div className="surface-card stat">
-						<h4>Total Sales</h4>
-						<div className="value">{formatINR(totalSales)}</div>
+				{/* Coming Soon Container */}
+				<div style={{
+					display: 'flex',
+					flexDirection: 'column',
+					alignItems: 'center',
+					justifyContent: 'center',
+					minHeight: '60vh',
+					background: '#f8f9fa',
+					borderRadius: '12px',
+					border: '2px dashed #ddd',
+					textAlign: 'center',
+					padding: '3rem',
+					filter: 'grayscale(0.3)',
+					opacity: 0.7
+				}}>
+					<div style={{
+						fontSize: '4rem',
+						marginBottom: '1rem',
+						opacity: 0.3
+					}}>
+						📊
 					</div>
-					<div className="surface-card stat">
-						<h4>Discount Savings</h4>
-						<div className="value">{formatINR(discountSavings)}</div>
+					<h2 style={{
+						fontSize: 'clamp(1.5rem, 4vw, 2rem)',
+						color: '#999',
+						marginBottom: '1rem',
+						fontWeight: 600
+					}}>
+						Dashboard Coming Soon
+					</h2>
+					<p style={{
+						fontSize: '1.1rem',
+						color: '#666',
+						maxWidth: '500px',
+						lineHeight: 1.6,
+						marginBottom: '2rem'
+					}}>
+						We're working on building comprehensive analytics and insights for your business. 
+						Stay tuned for detailed reports, charts, and key performance indicators.
+					</p>
+					<div style={{
+						display: 'flex',
+						gap: '1rem',
+						flexWrap: 'wrap',
+						justifyContent: 'center'
+					}}>
+						<div style={{
+							background: '#f0f0f0',
+							padding: '0.75rem 1.5rem',
+							borderRadius: '8px',
+							color: '#888',
+							fontSize: '0.9rem',
+							fontWeight: 500
+						}}>
+							📈 Sales Analytics
+						</div>
+						<div style={{
+							background: '#f0f0f0',
+							padding: '0.75rem 1.5rem',
+							borderRadius: '8px',
+							color: '#888',
+							fontSize: '0.9rem',
+							fontWeight: 500
+						}}>
+							📋 Performance Reports
+						</div>
+						<div style={{
+							background: '#f0f0f0',
+							padding: '0.75rem 1.5rem',
+							borderRadius: '8px',
+							color: '#888',
+							fontSize: '0.9rem',
+							fontWeight: 500
+						}}>
+							🎯 Key Metrics
+						</div>
 					</div>
-					<div className="surface-card stat">
-						<h4>Approved Discounts</h4>
-						<div className="value">{approvedDiscounts}</div>
-					</div>
-					<div className="surface-card stat">
-						<h4>Total Orders</h4>
-						<div className="value">{orders.length}</div>
-					</div>
-				</div>
-
-				<div className="surface-card elevated" style={{ marginTop: '1.5rem' }}>
-					<h2 className="section-title" style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>Recent Orders</h2>
-					{loading ? <p>Loading orders...</p> : orders.length === 0 ? <p>No orders found.</p> : (
-						<div className="table-container">
-                            <table className="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>Order ID</th>
-                                        <th>State</th>
-                                        <th>Salesman</th>
-                                        <th>Dealer</th>
-                                        <th>Total</th>
-                                        <th>Discount</th>
-                                        <th>Final Price</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {orders.slice(0, 8).map((order, i) => {
-                                        const total = order.total_price || 0;
-                                        const discount = order.discount || 0;
-                                        const discounted = order.discounted_total != null ? order.discounted_total : total - (total * discount / 100);
-                                        return (
-                                            <tr key={order._id || order.id || i}>
-                                                <td>{order._id || order.id || (i + 1)}</td>
-                                                <td>{order.state || 'N/A'}</td>
-                                                <td>{order.salesman_name || order.salesman_id || 'N/A'}</td>
-                                                <td>{order.dealer_name || order.dealer_id || 'N/A'}</td>
-                                                <td>{formatINR(total)}</td>
-                                                <td>{formatPercent(discount, { decimals: 2 })}%</td>
-                                                <td>{formatINR(discounted)}</td>
-                                                <td>
-                                                    <span className={`badge ${order.discount_status === 'approved' ? 'success' : order.discount_status === 'pending' ? 'warning' : order.discount_status === 'rejected' ? 'danger' : ''}`}>
-                                                        {(order.discount_status || 'N/A').toUpperCase()}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-					)}
 				</div>
 			</main>
 		</div>

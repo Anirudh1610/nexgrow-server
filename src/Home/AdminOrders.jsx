@@ -3,7 +3,7 @@ import axios from 'axios';
 import { SERVER_API_URL } from '../Auth/APIConfig';
 import AppHeader from '../components/AppHeader';
 import { useNavigate } from 'react-router-dom';
-import { formatINR, formatPercent, formatOrderDisplayId, computeDisplaySeqMap } from './numberFormat';
+import { formatINR, formatPercent, formatOrderDisplayId, computeDisplaySeqMap, calculateGST } from './numberFormat';
 
 const AdminOrders = () => {
   const [orders, setOrders] = useState([]);
@@ -69,6 +69,24 @@ const AdminOrders = () => {
                     ? order.discounted_total
                     : total - (total * discountPct) / 100;
                 const discountAmt = total - discounted;
+                
+                // Calculate GST - use stored value or calculate from product data
+                let gstTotal = order.gst_total || 0;
+                let grandTotal = order.grand_total || discounted;
+                
+                // If no stored GST, try to calculate from products
+                if (gstTotal === 0 && order.products && order.products.length > 0) {
+                  gstTotal = order.products.reduce((sum, product) => {
+                    const gstPercentage = product.gst_percentage || 0;
+                    if (gstPercentage > 0) {
+                      const productDiscounted = product.discounted_price || product.price || 0;
+                      const gstAmount = calculateGST(productDiscounted, gstPercentage);
+                      return sum + gstAmount;
+                    }
+                    return sum;
+                  }, 0);
+                  grandTotal = discounted + gstTotal;
+                }
                 const status = order.discount_status || 'n/a';
                 const badgeClass =
                   status === 'approved'
@@ -146,6 +164,12 @@ const AdminOrders = () => {
                       <span>Discount %: {formatPercent(discountPct,{decimals:2})}</span>
                       <span>Discount Amt: ₹{formatINR(discountAmt)}</span>
                       <span>After Discount: ₹{formatINR(discounted)}</span>
+                      {gstTotal > 0 && (
+                        <>
+                          <span>GST: ₹{formatINR(gstTotal)}</span>
+                          <span><strong>Grand Total: ₹{formatINR(grandTotal)}</strong></span>
+                        </>
+                      )}
                     </div>
                   </li>
                 );

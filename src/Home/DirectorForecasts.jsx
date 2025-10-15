@@ -10,6 +10,7 @@ const DirectorForecasts = () => {
   const [loading, setLoading] = useState(true);
   const [selectedSalesman, setSelectedSalesman] = useState('');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState('');
   const navigate = useNavigate();
 
   const months = [
@@ -30,7 +31,7 @@ const DirectorForecasts = () => {
     } else {
       setForecasts([]);
     }
-  }, [selectedSalesman, selectedYear]);
+  }, [selectedSalesman, selectedYear, selectedMonth]);
 
   const fetchSalesmen = async () => {
     try {
@@ -50,6 +51,9 @@ const DirectorForecasts = () => {
         year: selectedYear,
         salesman_id: selectedSalesman
       };
+      if (selectedMonth) {
+        params.month = selectedMonth;
+      }
       const response = await axios.get(`${SERVER_API_URL}/admin/forecasts`, { params });
       setForecasts(response.data || []);
     } catch (error) {
@@ -85,21 +89,15 @@ const DirectorForecasts = () => {
             </button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+          <div className="form-grid three-col" style={{ marginBottom: '1.5rem' }}>
             <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
+              <label className="form-label">
                 Select Salesman:
               </label>
               <select
                 value={selectedSalesman}
                 onChange={(e) => setSelectedSalesman(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.5rem',
-                  border: '1px solid var(--brand-border)',
-                  borderRadius: '4px',
-                  fontSize: '1rem'
-                }}
+                className="input"
               >
                 <option value="">-- Select a Salesman --</option>
                 {salesmen.map(salesman => (
@@ -111,19 +109,31 @@ const DirectorForecasts = () => {
             </div>
 
             <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
+              <label className="form-label">
+                Select Month:
+              </label>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="input"
+              >
+                <option value="">-- All Months --</option>
+                {months.map((month, index) => (
+                  <option key={month} value={month}>
+                    {month}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="form-label">
                 Select Year:
               </label>
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                style={{
-                  width: '100%',
-                  padding: '0.5rem',
-                  border: '1px solid var(--brand-border)',
-                  borderRadius: '4px',
-                  fontSize: '1rem'
-                }}
+                className="input"
               >
                 {years.map(year => (
                   <option key={year} value={year}>{year}</option>

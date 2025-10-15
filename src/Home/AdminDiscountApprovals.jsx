@@ -3,7 +3,7 @@ import axios from 'axios';
 import AppHeader from '../components/AppHeader';
 import { useNavigate } from 'react-router-dom';
 import { SERVER_API_URL } from '../Auth/APIConfig';
-import { formatINR, formatPercent, formatOrderDisplayId, computeDisplaySeqMap } from './numberFormat';
+import { formatINR, formatPercent, formatOrderDisplayId, computeDisplaySeqMap, calculateGST } from './numberFormat';
 import '../components/UITheme.css';
 
 
@@ -14,10 +14,21 @@ const AdminDiscountApprovals = () => {
   const [salesmanMap, setSalesmanMap] = useState({});
   const [dealerMap, setDealerMap] = useState({});
   const [productMap, setProductMap] = useState({});
+  const [expandedOrders, setExpandedOrders] = useState(new Set());
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  const toggleOrderExpansion = (orderNumber) => {
+    const newExpandedOrders = new Set(expandedOrders);
+    if (newExpandedOrders.has(orderNumber)) {
+      newExpandedOrders.delete(orderNumber);
+    } else {
+      newExpandedOrders.add(orderNumber);
+    }
+    setExpandedOrders(newExpandedOrders);
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -47,13 +58,38 @@ const AdminDiscountApprovals = () => {
       data = allZero ? data.slice().reverse() : withTs.map(x=>x.o);
       setOrders(data);
       
-      const smap = salesmenRes.data.reduce((acc, s) => ({ ...acc, [s.id]: s.name }), {});
+      // Create robust mapping that handles different possible field names
+      const smap = {};
+      (salesmenRes.data || []).forEach(s => {
+        const id = s.id || s._id || s.salesman_id;
+        const name = s.name || s.salesman_name || s.full_name;
+        if (id && name) {
+          smap[id] = name;
+          smap[String(id)] = name; // Handle both string and number IDs
+        }
+      });
       setSalesmanMap(smap);
 
-      const dmap = dealersRes.data.reduce((acc, d) => ({ ...acc, [d.id]: d.name }), {});
+      const dmap = {};
+      (dealersRes.data || []).forEach(d => {
+        const id = d.id || d._id || d.dealer_id;
+        const name = d.name || d.dealer_name || d.full_name;
+        if (id && name) {
+          dmap[id] = name;
+          dmap[String(id)] = name; // Handle both string and number IDs
+        }
+      });
       setDealerMap(dmap);
 
-      const pmap = productsRes.data.reduce((acc, p) => ({ ...acc, [p.id]: p.name }), {});
+      const pmap = {};
+      (productsRes.data || []).forEach(p => {
+        const id = p.id || p._id || p.product_id;
+        const name = p.name || p.product_name || p.title;
+        if (id && name) {
+          pmap[id] = name;
+          pmap[String(id)] = name; // Handle both string and number IDs
+        }
+      });
       setProductMap(pmap);
 
     } catch (error) {
@@ -140,42 +176,142 @@ const AdminDiscountApprovals = () => {
                 const effectivePct = totalBase > 0 ? (totalDiscountAmtExact / totalBase) * 100 : 0;
                 const status = order.discount_status || 'n/a';
                 const badgeClass = status==='approved'? 'badge success' : status==='pending'? 'badge warning' : status==='rejected'? 'badge danger':'badge';
-                const salesmanName = order.salesman_name || salesmanMap[order.salesman_id] || 'N/A';
-                const dealerName = order.dealer_name || dealerMap[order.dealer_id] || 'N/A';
+                // Try multiple possible field names for salesman
+                const salesmanId = order.salesman_id || order.salesmanId || order.salesman;
+                const salesmanName = order.salesman_name || order.salesmanName || 
+                                   salesmanMap[salesmanId] || salesmanMap[String(salesmanId)] || 'N/A';
+                
+                // Try multiple possible field names for dealer  
+                const dealerId = order.dealer_id || order.dealerId || order.dealer;
+                const dealerName = order.dealer_name || order.dealerName || 
+                                 dealerMap[dealerId] || dealerMap[String(dealerId)] || 'N/A';
         const seq = seqMap[String(order._id || order.id)] || 1;
+        const orderId = order._id || order.id;
+        const isExpanded = expandedOrders.has(orderId);
+        
         return (
-                  <div key={order._id || order.id} className="order-card">
-                    <header>
-          <strong style={{fontSize:'1rem'}}>{order.order_code || formatOrderDisplayId(order, { seq })}</strong>
-                      <span className={badgeClass}>{status.toUpperCase()}</span>
-                    </header>
-                    <div style={{fontSize:'.85rem',color:'var(--brand-text-soft)',display:'flex',flexWrap:'wrap',gap:'1.5rem', margin: '0.5rem 0'}}>
-                      <span><strong>Salesman:</strong> {salesmanName}</span>
-                      <span><strong>Dealer:</strong> {dealerName}</span>
-                      {order.state && <span><strong>State:</strong> {order.state}</span>}
+                  <div key={orderId} className="order-card">
+                    <div 
+                      style={{cursor: 'pointer'}} 
+                      onClick={() => toggleOrderExpansion(orderId)}
+                    >
+                      <header style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                        <strong style={{fontSize:'1rem'}}>{order.order_code || formatOrderDisplayId(order, { seq })}</strong>
+                        <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+                          <span className={badgeClass}>{status.toUpperCase()}</span>
+                          <span style={{fontSize: '0.8rem', color: 'var(--brand-text-soft)'}}>
+                            {isExpanded ? '▼' : '▶'}
+                          </span>
+                        </div>
+                      </header>
+                      
+                      {/* Condensed view - always visible */}
+                      <div style={{fontSize:'.9rem', margin: '0.5rem 0', display: 'flex', flexWrap: 'wrap', gap: '1rem'}}>
+                        <span><strong>Salesman:</strong> {salesmanName}</span>
+                        <span><strong>Discount:</strong> {formatPercent(effectivePct,{decimals:1})}%</span>
+                        <span><strong>Discount Amt:</strong> {formatINR(totalDiscountAmtExact)}</span>
+                        <span><strong>Subtotal:</strong> {formatINR(totalAfter)}</span>
+                        {(() => {
+                          // Calculate GST - use stored value or calculate from product data
+                          let gstTotal = order.gst_total || 0;
+                          let grandTotal = order.grand_total || totalAfter;
+                          
+                          // If no stored GST, try to calculate from products
+                          if (gstTotal === 0 && computedLines.length > 0) {
+                            gstTotal = computedLines.reduce((sum, line) => {
+                              // Try to get GST percentage from product data
+                              const gstPercentage = line.gst_percentage || 0;
+                              if (gstPercentage > 0) {
+                                const gstAmount = calculateGST(line.discounted, gstPercentage);
+                                return sum + gstAmount;
+                              }
+                              return sum;
+                            }, 0);
+                            grandTotal = totalAfter + gstTotal;
+                          }
+                          
+                          if (gstTotal > 0) {
+                            return (
+                              <>
+                                <span><strong>GST:</strong> {formatINR(gstTotal)}</span>
+                                <span><strong>Grand Total:</strong> {formatINR(grandTotal)}</span>
+                              </>
+                            );
+                          }
+                          return <span><strong>Final Total:</strong> {formatINR(totalAfter)}</span>;
+                        })()}
+                      </div>
                     </div>
-                    {computedLines.length>0 && (
-                      <ul style={{margin:'.75rem 0 0 1rem',padding:0,fontSize:'.8rem',listStyle:'disc'}}>
-                        {computedLines.map((p,i)=>{
-                          const name = p.product_name || productMap[p.product_id] || 'Product';
-                          return (
-                            <li key={i} style={{margin:'4px 0'}}>
-                              {name} - Qty: {p.quantity} - Base: {formatINR(p.base)}{p.pct>0 && <> - {formatPercent(p.pct,{decimals:1})}% → <strong>{formatINR(p.discounted)}</strong></>}
-                            </li>
-                          );
-                        })}
-                      </ul>
+
+                    {/* Expanded details - only when clicked */}
+                    {isExpanded && (
+                      <div style={{marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--brand-border)'}}>
+                        <div style={{fontSize:'.85rem',color:'var(--brand-text-soft)',display:'flex',flexWrap:'wrap',gap:'1.5rem', margin: '0.5rem 0'}}>
+                          <span><strong>Dealer:</strong> {dealerName}</span>
+                          {order.state && <span><strong>State:</strong> {order.state}</span>}
+                        </div>
+                        
+                        {computedLines.length>0 && (
+                          <div>
+                            <h4 style={{fontSize: '0.9rem', margin: '1rem 0 0.5rem 0', color: 'var(--brand-text)'}}>Products:</h4>
+                            <ul style={{margin:'0 0 0 1rem',padding:0,fontSize:'.8rem',listStyle:'disc'}}>
+                              {computedLines.map((p,i)=>{
+                                // Try multiple possible field names for product
+                                const productId = p.product_id || p.productId || p.id;
+                                const name = p.product_name || p.productName || p.name || 
+                                           productMap[productId] || productMap[String(productId)] || 'Product';
+                                return (
+                                  <li key={i} style={{margin:'4px 0'}}>
+                                    {name} - Qty: {p.quantity} - Base: {formatINR(p.base)}{p.pct>0 && <> - {formatPercent(p.pct,{decimals:1})}% → <strong>{formatINR(p.discounted)}</strong></>}
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        )}
+                        
+                        <div className="order-metrics" style={{marginTop: '1rem'}}>
+                          <span>Total: {formatINR(totalBase)}</span>
+                          <span>Discount: {formatINR(totalDiscountAmtExact)}</span>
+                          <span>Subtotal: {formatINR(totalAfter)}</span>
+                          {(() => {
+                            // Calculate GST - use stored value or calculate from product data
+                            let gstTotal = order.gst_total || 0;
+                            let grandTotal = order.grand_total || totalAfter;
+                            
+                            // If no stored GST, try to calculate from products
+                            if (gstTotal === 0 && computedLines.length > 0) {
+                              gstTotal = computedLines.reduce((sum, line) => {
+                                // Try to get GST percentage from product data
+                                const gstPercentage = line.gst_percentage || 0;
+                                if (gstPercentage > 0) {
+                                  const gstAmount = calculateGST(line.discounted, gstPercentage);
+                                  return sum + gstAmount;
+                                }
+                                return sum;
+                              }, 0);
+                              grandTotal = totalAfter + gstTotal;
+                            }
+                            
+                            if (gstTotal > 0) {
+                              return (
+                                <>
+                                  <span>GST: {formatINR(gstTotal)}</span>
+                                  <span><strong>Grand Total: {formatINR(grandTotal)}</strong></span>
+                                </>
+                              );
+                            }
+                            return <span>Final: {formatINR(totalAfter)}</span>;
+                          })()}
+                          <span>Effective: {formatPercent(effectivePct,{decimals:1})}%</span>
+                        </div>
+                        
+                        <div style={{marginTop:'1rem',display:'flex',gap:'.75rem'}}>
+                          <button className="btn" onClick={(e) => {e.stopPropagation(); handleApprove(orderId);}}>Approve</button>
+                          <button className="btn danger" onClick={(e) => {e.stopPropagation(); handleReject(orderId);}}>Reject</button>
+                        </div>
+                      </div>
                     )}
-                    <div className="order-metrics">
-                      <span>Total: {formatINR(totalBase)}</span>
-                      <span>Discount: {formatINR(totalDiscountAmtExact)}</span>
-                      <span>Final: {formatINR(totalAfter)}</span>
-                      <span>Effective: {formatPercent(effectivePct,{decimals:1})}%</span>
-                    </div>
-                    <div style={{marginTop:'1rem',display:'flex',gap:'.75rem'}}>
-                      <button className="btn" onClick={()=>handleApprove(order._id || order.id)}>Approve</button>
-                      <button className="btn danger" onClick={()=>handleReject(order._id || order.id)}>Reject</button>
-                    </div>
                   </div>
                 );
               }); })()}
