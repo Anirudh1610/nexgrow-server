@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { SERVER_API_URL } from '../Auth/APIConfig';
 import { formatINR } from './numberFormat';
 import AppHeader from '../components/AppHeader';
+import StateDropdown from '../components/StateDropdown';
+import { INDIAN_STATES } from '../constants/indianStates';
 
 const AdminManagement = () => {
   const navigate = useNavigate();
@@ -30,15 +32,20 @@ const AdminManagement = () => {
   // For Sales Manager team multi-select UI
   const [teamDropdownOpen, setTeamDropdownOpen] = useState(false);
   const [teamSearch, setTeamSearch] = useState('');
+  // Mobile responsive state
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  // Search functionality
+  const [searchQuery, setSearchQuery] = useState('');
   const pretty = (t) => (t || '').replace(/_/g, ' ').replace(/\b\w/g, m => m.toUpperCase());
 
-  // Reset filters when tab changes
+  // Reset filters and search when tab changes
   useEffect(() => { 
     setFilters({}); 
     setFilterSelections({}); 
     setOpenFilter(null);
     setTeamDropdownOpen(false);
     setTeamSearch('');
+    setSearchQuery('');
   }, [activeTab]);
 
   useEffect(() => {
@@ -47,6 +54,24 @@ const AdminManagement = () => {
       setFilterSearch('');
     }
   }, [openFilter, filterSelections]);
+
+  // Prevent horizontal scrolling on the entire page
+  useEffect(() => {
+    document.body.style.overflowX = 'hidden';
+    return () => {
+      document.body.style.overflowX = 'auto';
+    };
+  }, []);
+
+  // Handle window resize for mobile responsiveness
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -78,7 +103,7 @@ const AdminManagement = () => {
   sales_managers: { state:'', name:'', email:'', phone:'', salesmen_ids:[], active:true },
   directors: { name:'', email:'', phone:'', active:true },
     dealers: { name:'', phone:'', state:'', sales_man_id:'', credit_limit:100000, active:true },
-    products: { name:'', category:'', packing_size:'', bottles_per_case:1, bottle_volume:'', moq:'', dealer_price_per_bottle:0, gst_percentage:18, billing_price_per_bottle:0, mrp_per_bottle:0, product_details:'', active:true }
+    products: { name:'', category:'', packing_size:'', quantity_per_case:1, bottle_volume:'', moq:'', dealer_price_per_bottle:0, gst_percentage:18, billing_price__unit:0, mrp_per_unit:0, product_details:'', active:true }
   };
 
   const fetchData = useCallback(async () => {
@@ -256,6 +281,72 @@ const AdminManagement = () => {
     return false;
   };
 
+  const convertLiquidToLiquids = async () => {
+    try {
+      setLoading(true);
+      
+      // Find all products with "Liquid" category (singular)
+      const productsToUpdate = products.filter(product => 
+        product.category === 'Liquid' && product.active !== false
+      );
+      
+      if (productsToUpdate.length === 0) {
+        window.alert('No products found with "Liquid" category to convert.');
+        setLoading(false);
+        return;
+      }
+      
+      const confirmUpdate = window.confirm(
+        `Found ${productsToUpdate.length} product(s) with "Liquid" category. Convert all to "Liquids"?`
+      );
+      
+      if (!confirmUpdate) {
+        setLoading(false);
+        return;
+      }
+      
+      // Update each product
+      let successCount = 0;
+      let errorCount = 0;
+      
+      for (const product of productsToUpdate) {
+        try {
+          const { _id, id, __v, ...productData } = product;
+          const updatedProduct = { ...productData, category: 'Liquids' };
+          
+          const url = `${SERVER_API_URL}/orders/admin/products/${product.id || product._id}`;
+          const response = await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedProduct)
+          });
+          
+          if (response.ok) {
+            successCount++;
+          } else {
+            errorCount++;
+            console.error(`Failed to update product ${product.name}:`, await response.text());
+          }
+        } catch (error) {
+          errorCount++;
+          console.error(`Error updating product ${product.name}:`, error);
+        }
+      }
+      
+      // Show results and refresh data
+      window.alert(`Conversion completed!\nSuccessful: ${successCount}\nFailed: ${errorCount}`);
+      if (successCount > 0) {
+        await fetchData(); // Refresh the products list
+      }
+      
+    } catch (error) {
+      console.error('Error in convertLiquidToLiquids:', error);
+      window.alert('An error occurred while converting products. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError('');
@@ -333,6 +424,115 @@ const AdminManagement = () => {
     }
   };
 
+  const renderProductsByCategory = () => {
+    const activeProducts = products.filter(product => product.active !== false);
+    
+    // Apply search filter to products
+    const searchFilteredProducts = activeProducts.filter(product => {
+      if (!searchQuery.trim()) return true;
+      
+      const query = searchQuery.toLowerCase().trim();
+      const searchFields = ['name', 'category', 'packing_size', 'product_details'];
+      
+      return searchFields.some(field => {
+        const value = product[field];
+        if (value === null || value === undefined) return false;
+        return String(value).toLowerCase().includes(query);
+      });
+    });
+    
+    // Categorize products
+    const categorizeProduct = (category) => {
+      const categoryLower = (category || '').toLowerCase();
+      if (categoryLower.includes('granule')) return 'Granules';
+      if (categoryLower.includes('powder')) return 'Powders';
+      if (categoryLower.includes('liquid')) return 'Liquids';
+      return 'Others'; // fallback for uncategorized
+    };
+
+    const categorizedProducts = {
+      'Granules': [],
+      'Powders': [],
+      'Liquids': [],
+      'Others': []
+    };
+
+    searchFilteredProducts.forEach(product => {
+      const category = categorizeProduct(product.category);
+      categorizedProducts[category].push(product);
+    });
+
+    // Sort products within each category
+    Object.keys(categorizedProducts).forEach(category => {
+      categorizedProducts[category].sort((a, b) => 
+        (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
+      );
+      if (!sortAsc) categorizedProducts[category].reverse();
+    });
+
+    const renderProductSection = (categoryName, productList) => {
+      if (productList.length === 0) return null;
+
+      return (
+        <div key={categoryName} style={{ marginBottom: '2rem' }}>
+          <h4 style={{ 
+            ...styles.sectionTitle, 
+            backgroundColor: 'var(--brand-green)', 
+            color: '#fff', 
+            padding: '.5rem 1rem', 
+            borderRadius: '4px', 
+            marginBottom: '1rem',
+            position: 'sticky',
+            top: '0',
+            zIndex: 10,
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+          }}>
+            {categoryName} ({productList.length})
+          </h4>
+          <div className="tableContainer" style={styles.tableContainer}>
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.th}>Name</th>
+                  <th style={styles.th}>Category</th>
+                  <th style={styles.th}>Packing Size</th>
+                  <th style={styles.th}>Unit Price</th>
+                  <th style={styles.th}>GST %</th>
+                  <th style={styles.th}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {productList.map(product => (
+                  <tr key={product.id || product._id} style={styles.tr}>
+                    <td style={styles.td}>{product.name || 'N/A'}</td>
+                    <td style={styles.td}>{product.category || 'N/A'}</td>
+                    <td style={styles.td}>{product.packing_size || 'N/A'}</td>
+                    <td style={styles.td}>₹{product.dealer_price_per_bottle || 'N/A'}</td>
+                    <td style={styles.td}>{product.gst_percentage || 'N/A'}%</td>
+                    <td style={styles.td}>
+                      <button style={styles.editButton} onClick={() => handleEdit(product)}>Edit</button>
+                      <button style={styles.deactivateButton} onClick={() => toggleActive(product, false)}>Deactivate</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    };
+
+    return (
+      <div style={{ marginTop: '.5rem' }}>
+        <h4 style={styles.sectionTitle}>Active Products</h4>
+        {renderProductSection('Granules', categorizedProducts.Granules)}
+        {renderProductSection('Powders', categorizedProducts.Powders)}
+        {renderProductSection('Liquids', categorizedProducts.Liquids)}
+        {renderProductSection('Others', categorizedProducts.Others)}
+      </div>
+    );
+  };
+
   const renderTable = () => {
     let data, columnConfig;
     // Define column configs with field mapping & type
@@ -342,7 +542,7 @@ const AdminManagement = () => {
       sales_managers: [ { label:'Name', field:'name', type:'text' }, { label:'Email', field:'email', type:'text' }, { label:'Phone', field:'phone', type:'text' }, { label:'State', field:'state', type:'text' }, { label:'Team', field:'salesmen_ids', type:'team' } ],
       directors: [ { label:'Name', field:'name', type:'text' }, { label:'Email', field:'email', type:'text' }, { label:'Phone', field:'phone', type:'text' } ],
       dealers: [ { label:'Name', field:'name', type:'text' }, { label:'Phone', field:'phone', type:'text' }, { label:'State', field:'state', type:'text' }, { label:'Credit Limit', field:'credit_limit', type:'number' } ],
-      products: [ { label:'Name', field:'name', type:'text' }, { label:'Category', field:'category', type:'text' }, { label:'Packing Size', field:'packing_size', type:'text' }, { label:'Price per Bottle', field:'dealer_price_per_bottle', type:'number' }, { label:'GST %', field:'gst_percentage', type:'number' } ]
+      products: [ { label:'Name', field:'name', type:'text' }, { label:'Category', field:'category', type:'text' }, { label:'Packing Size', field:'packing_size', type:'text' }, { label:'Unit Price', field:'dealer_price_per_bottle', type:'number' }, { label:'GST %', field:'gst_percentage', type:'number' } ]
     };
     switch (activeTab) { 
       case 'salesmen': data = salesmen; columnConfig = configs.salesmen; break; 
@@ -353,10 +553,39 @@ const AdminManagement = () => {
       default: return null; 
     }
 
+    // Special handling for products - render by category
+    if (activeTab === 'products') {
+      return renderProductsByCategory();
+    }
+
     const activeData = data.filter(it => it.active !== false); // treat undefined as active
 
-    // Build sequential filtering like Excel: apply all active filters
-    const filteredData = activeData.filter(item => {
+    // Apply search filter first
+    const searchFilteredData = activeData.filter(item => {
+      if (!searchQuery.trim()) return true;
+      
+      const query = searchQuery.toLowerCase().trim();
+      
+      // Search across relevant fields based on active tab
+      const searchFields = {
+        salesmen: ['name', 'email', 'phone', 'state', 'role', 'sales_manager'],
+        sales_managers: ['name', 'email', 'phone', 'state'],
+        directors: ['name', 'email', 'phone'],
+        dealers: ['name', 'phone', 'state'],
+        products: ['name', 'category', 'packing_size', 'product_details']
+      };
+      
+      const fieldsToSearch = searchFields[activeTab] || ['name'];
+      
+      return fieldsToSearch.some(field => {
+        const value = item[field];
+        if (value === null || value === undefined) return false;
+        return String(value).toLowerCase().includes(query);
+      });
+    });
+
+    // Build sequential filtering like Excel: apply all active filters to search-filtered data
+    const filteredData = searchFilteredData.filter(item => {
       return Object.entries(filterSelections).every(([field, selected]) => {
         if (!selected || selected.length === 0) return true;
         const raw = item[field];
@@ -371,7 +600,7 @@ const AdminManagement = () => {
 
     // Helper to get unique values for a field based on current filters excluding that field (Excel behavior)
     const getUniqueValues = field => {
-      const partialFiltered = activeData.filter(item => {
+      const partialFiltered = searchFilteredData.filter(item => {
         return Object.entries(filterSelections).every(([f, sel]) => {
           if (f === field) return true; // ignore current field
           if (!sel || sel.length === 0) return true;
@@ -500,7 +729,7 @@ const AdminManagement = () => {
     sales_managers:['Name','Email','Phone','State','Team'], 
     directors:['Name','Email','Phone'], 
     dealers:['Name','Phone','State','Credit Limit'], 
-    products:['Name','Category','Packing Size','Price per Bottle','GST %'] 
+    products:['Name','Category','Packing Size','Unit Price','GST %'] 
   }[activeTab];
     return (
       <div className="tableContainer" style={{ marginTop:'2rem', ...styles.tableContainer }}>
@@ -627,7 +856,7 @@ const AdminManagement = () => {
           if (field === 'role' && activeTab === 'salesmen') {
             return (
               <div key={field} style={styles.formGroup}>
-                <label style={styles.label}>Role:</label>
+                <label style={styles.label}>Role</label>
                 <select
                   value={formData[field] || 'salesman'}
                   onChange={(e) => setFormData({ ...formData, [field]: e.target.value })}
@@ -650,7 +879,7 @@ const AdminManagement = () => {
               .map(s => s.name);
             return (
               <div key={field} style={styles.formGroup}>
-                <label style={styles.label}>Salesmen (filtered by State):</label>
+                <label style={styles.label}>Salesmen (filtered by State)</label>
                 <div style={{ ...styles.multiSelectContainer, ...(selectedState ? {} : { opacity:.7 }) }} className="team-multi-select">
                   <div style={styles.multiSelectDisplay} onClick={() => setTeamDropdownOpen(o => !o)}>
                     {selectedNames.length === 0 && (
@@ -698,54 +927,58 @@ const AdminManagement = () => {
             );
           }
 
-          // State dropdown for Sales Managers with 'Others' option
-          if (activeTab === 'sales_managers' && field === 'state') {
-            const current = (formData.state || '').toString();
-            const match = salesmenStates.find(s => s.toLowerCase() === current.toLowerCase());
-            const selectValue = current === '' ? '' : (match ? match : '__other__');
+          // State dropdown using StateDropdown component
+          if (field === 'state') {
+            // Special handling for sales_managers that need custom values and team management
+            if (activeTab === 'sales_managers') {
+              // Check if the current state value is one of the predefined Indian states
+              const isCustomState = formData[field] && !INDIAN_STATES.find(state => state.code === formData[field]);
+              
+              return (
+                <div key={field} style={styles.formGroup}>
+                  <label style={styles.label}>State</label>
+                  <StateDropdown
+                    value={isCustomState ? '__custom__' : formData[field] || ''}
+                    onChange={(value) => {
+                      setTeamDropdownOpen(false);
+                      setTeamSearch('');
+                      if (value === '__custom__') {
+                        setFormData(prev => ({ ...prev, state: formData[field] || '', salesmen_ids: [] }));
+                      } else {
+                        setFormData(prev => ({ ...prev, state: value, salesmen_ids: [] }));
+                      }
+                    }}
+                    required
+                    allowCustom={true}
+                    customValue={isCustomState ? formData[field] || '' : ''}
+                    onCustomChange={(customValue) => {
+                      setTeamDropdownOpen(false);
+                      setTeamSearch('');
+                      setFormData(prev => ({ ...prev, state: customValue, salesmen_ids: [] }));
+                    }}
+                    showLabel={false}
+                    style={styles.input}
+                  />
+                </div>
+              );
+            }
+            
+            // Standard state dropdown for other tabs
             return (
               <div key={field} style={styles.formGroup}>
-                <label style={styles.label}>State:</label>
-                <select
-                  value={selectValue}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (v === '__other__') {
-                      setTeamDropdownOpen(false);
-                      setTeamSearch('');
-                      // keep existing custom state if any, just clear team
-                      setFormData(prev => ({ ...prev, salesmen_ids: [] }));
-                    } else {
-                      setTeamDropdownOpen(false);
-                      setTeamSearch('');
-                      setFormData(prev => ({ ...prev, state: v, salesmen_ids: [] }));
-                    }
-                  }}
-                  style={styles.input}
+                <label style={styles.label}>State</label>
+                <StateDropdown
+                  value={formData[field] || ''}
+                  onChange={(value) => setFormData({...formData, [field]: value})}
                   required
-                >
-                  <option value="">Select State</option>
-                  {salesmenStates.map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                  <option value="__other__">Others</option>
-                </select>
-                {selectValue === '__other__' && (
-                  <input
-                    placeholder="Enter state"
-                    value={formData.state || ''}
-                    onChange={(e) => {
-                      setTeamDropdownOpen(false);
-                      setTeamSearch('');
-                      setFormData(prev => ({ ...prev, state: e.target.value, salesmen_ids: [] }));
-                    }}
-                    style={{ ...styles.input, marginTop: '.5rem' }}
-                    required
-                  />
-                )}
+                  showLabel={false}
+                  style={styles.input}
+                />
               </div>
             );
           }
+
+
 
           // Name dropdown for Sales Managers (from salesmen in selected state)
           if (activeTab === 'sales_managers' && field === 'name') {
@@ -755,7 +988,7 @@ const AdminManagement = () => {
             })();
             return (
               <div key={field} style={styles.formGroup}>
-                <label style={styles.label}>Sales Manager Name:</label>
+                <label style={styles.label}>Sales Manager Name</label>
                 <select
                   value={selectedId}
                   onChange={(e) => {
@@ -785,7 +1018,7 @@ const AdminManagement = () => {
           if (field === 'sales_man_id' && activeTab === 'dealers') {
             return (
               <div key={field} style={styles.formGroup}>
-                <label style={styles.label}>Salesman:</label>
+                <label style={styles.label}>Salesman</label>
                 <select
                   value={formData[field] || ''}
                   onChange={(e) => setFormData({...formData, [field]: e.target.value})}
@@ -802,18 +1035,64 @@ const AdminManagement = () => {
               </div>
             );
           }
+
+          // Category dropdown for products
+          if (field === 'category' && activeTab === 'products') {
+            return (
+              <div key={field} style={styles.formGroup}>
+                <label style={styles.label}>Category</label>
+                <select
+                  value={formData[field] || ''}
+                  onChange={(e) => setFormData({...formData, [field]: e.target.value})}
+                  style={styles.input}
+                  required
+                >
+                  <option value="">Select Category</option>
+                  <option value="Granules">Granules</option>
+                  <option value="Powders">Powders</option>
+                  <option value="Liquids">Liquids</option>
+                </select>
+              </div>
+            );
+          }
           
+          // Sales manager dropdown for salesmen
+          if (field === 'sales_manager' && activeTab === 'salesmen') {
+            return (
+              <div key={field} style={styles.formGroup}>
+                <label style={styles.label}>Sales Manager</label>
+                <select
+                  value={formData[field] || ''}
+                  onChange={(e) => setFormData({...formData, [field]: e.target.value})}
+                  style={styles.input}
+                >
+                  <option value="">Select Sales Manager</option>
+                  {managersFromSalesmen.map(manager => (
+                    <option key={manager.id || manager._id} value={manager.name}>
+                      {manager.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            );
+          }
+
           // Only show sales_manager for salesmen
           if (field === 'sales_manager' && activeTab !== 'salesmen') return null;
           // Hide 'active' from all create/edit forms; managed via Activate/Deactivate in tables
           if (field === 'active') return null;
           const fieldType = typeof formTemplates[activeTab][field] === 'number' ? 'number' : 
                            field.includes('email') ? 'email' : 'text';
+
+          // Check if bottle_volume should be disabled (not liquid category)
+          const isLiquidCategory = (formData.category || '').toLowerCase().includes('liquid');
+          const isBottleVolumeDisabled = field === 'bottle_volume' && activeTab === 'products' && 
+                                         !isLiquidCategory;
           
           return (
             <div key={field} style={styles.formGroup}>
               <label style={styles.label}>
-                {field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, ' ')}:
+                {field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, ' ')}
               </label>
               <input
                 type={fieldType}
@@ -828,8 +1107,17 @@ const AdminManagement = () => {
                     setFormData({ ...formData, [field]: e.target.value });
                   }
                 }}
-                style={styles.input}
-                required={!['phone','product_details','sales_manager'].includes(field)}
+                style={{
+                  ...styles.input,
+                  ...(isBottleVolumeDisabled ? {
+                    backgroundColor: '#f5f5f5',
+                    color: '#999',
+                    cursor: 'not-allowed'
+                  } : {})
+                }}
+                disabled={isBottleVolumeDisabled}
+                required={modalType === 'create' && (!['phone','product_details','sales_manager','bottle_volume','dealer_price_per_bottle'].includes(field) || 
+                         (field === 'bottle_volume' && isLiquidCategory))}
               />
             </div>
           );
@@ -852,19 +1140,46 @@ const AdminManagement = () => {
   };
 
   const styles = {
-    container: { display:'flex', flexDirection:'column', minHeight:'100vh', background:'var(--brand-bg)', color:'var(--brand-text)' },
-    header: { textAlign:'center', marginBottom:'0', backgroundColor:'#ffffff', paddingTop:'1rem', paddingBottom:'.5rem' },
+    container: { display:'flex', flexDirection:'column', minHeight:'100vh', background:'var(--brand-bg)', color:'var(--brand-text)', width:'100%', maxWidth:'100%', overflowX:'auto', paddingRight: window.innerWidth <= 768 ? '0' : '2rem' },
+    header: { textAlign:'center', marginBottom:'0', backgroundColor:'#ffffff', paddingTop:'1rem', paddingBottom:'.5rem', width:'100%', maxWidth:'100%' },
     title: { fontSize:'clamp(1.2rem, 4vw, 1.55rem)', fontWeight:700, letterSpacing:'.3px', margin:0, background:'linear-gradient(90deg,#128d3b,#2fbf62)', WebkitBackgroundClip:'text', color:'transparent' },
-    tabs: { display:'flex', justifyContent:'center', gap:'.5rem', marginBottom:'1rem', flexWrap:'wrap', position:'sticky', top:'0', zIndex:50, backgroundColor:'#ffffff', paddingTop:'.5rem', paddingBottom:'.75rem', borderBottom:'1px solid #e0e0e0' },
+    tabs: { display:'flex', justifyContent:'center', gap:'.5rem', marginBottom:'1rem', flexWrap:'wrap', position:'sticky', top:'0', zIndex:50, backgroundColor:'#ffffff', paddingTop:'.5rem', paddingBottom:'.75rem', borderBottom:'1px solid #e0e0e0', width:'100%', maxWidth:'100%' },
     tab: { padding:'.5rem .8rem', background:'#fff', color:'var(--brand-green-dark)', border:'1px solid var(--brand-green)', borderRadius:'var(--radius-md)', cursor:'pointer', fontSize:'.7rem', fontWeight:500, letterSpacing:'.3px', transition:'var(--transition-base)' },
     activeTab: { background:'var(--brand-green)', color:'#fff', boxShadow:'var(--brand-shadow-sm)' },
-    content: { background:'var(--brand-surface)', border:'1px solid var(--brand-border)', borderRadius:'var(--radius-lg)', padding:'1rem', maxWidth:'100%', margin:'0 0 1rem 0', width:'100%', boxShadow:'var(--brand-shadow-sm)', overflowX:'visible' },
-    createButton: { background:'var(--brand-green)', color:'#fff', border:'1px solid var(--brand-green)', padding:'.6rem 1rem', borderRadius:'var(--radius-md)', fontSize:'.75rem', fontWeight:600, letterSpacing:'.3px', cursor:'pointer', boxShadow:'var(--brand-shadow-sm)', transition:'var(--transition-base)' },
-    tableContainer: { overflowX:'auto', marginTop:'.5rem', width:'100%', border:'1px solid #ddd', borderRadius:'4px', padding:'.5rem' },
-    table: { borderCollapse:'collapse', fontSize:'.7rem', width:'100%' },
-    th: { background:'var(--brand-surface-alt)', padding:'.5rem', textAlign:'left', borderBottom:'1px solid var(--brand-border)', fontWeight:600, fontSize:'.55rem', textTransform:'uppercase', color:'var(--brand-text-soft)', whiteSpace:'nowrap', minWidth:'120px' },
+    content: { background:'var(--brand-surface)', border:'1px solid var(--brand-border)', borderRadius:'var(--radius-lg)', padding:'1rem', maxWidth: window.innerWidth <= 768 ? '100%' : 'calc(100% - 2rem)', margin:'0 0 1rem 0', width: window.innerWidth <= 768 ? '100%' : 'calc(100% - 2rem)', boxShadow:'var(--brand-shadow-sm)', overflowX:'auto' },
+    createButton: { background:'var(--brand-green)', color:'#fff', border:'1px solid var(--brand-green)', padding:'.4rem .6rem', borderRadius:'var(--radius-md)', fontSize:'.65rem', fontWeight:600, letterSpacing:'.3px', cursor:'pointer', boxShadow:'var(--brand-shadow-sm)', transition:'var(--transition-base)' },
+    tableContainer: { overflowX:'auto', marginTop:'.5rem', width:'100%', maxWidth:'100%', border:'1px solid #ddd', borderRadius:'4px', padding:'.5rem', boxSizing:'border-box', WebkitOverflowScrolling:'touch', scrollBehavior:'smooth' },
+    table: { 
+      borderCollapse:'collapse', 
+      fontSize:'.7rem', 
+      width: window.innerWidth <= 768 ? '600px' : '100%', 
+      tableLayout:'auto',
+      minWidth: window.innerWidth <= 768 ? '600px' : 'auto'
+    },
+    th: { 
+      background:'var(--brand-surface-alt)', 
+      padding:'.4rem', 
+      textAlign:'left', 
+      borderBottom:'1px solid var(--brand-border)', 
+      fontWeight:600, 
+      fontSize:'.55rem', 
+      textTransform:'uppercase', 
+      color:'var(--brand-text-soft)', 
+      whiteSpace:'nowrap', 
+      minWidth: window.innerWidth <= 768 ? '120px' : '100px', 
+      maxWidth:'200px' 
+    },
     tr: { borderBottom:'1px solid var(--brand-border)' },
-    td: { padding:'.5rem', verticalAlign:'middle', fontSize:'.65rem', whiteSpace:'nowrap', minWidth:'120px' },
+    td: { 
+      padding:'.4rem', 
+      verticalAlign:'middle', 
+      fontSize:'.65rem', 
+      whiteSpace:'nowrap', 
+      minWidth: window.innerWidth <= 768 ? '120px' : '100px', 
+      maxWidth:'200px', 
+      overflow:'hidden', 
+      textOverflow:'ellipsis' 
+    },
     editButton: { background:'var(--brand-green)', color:'#fff', border:'none', padding:'.5rem .75rem', borderRadius:'var(--radius-sm)', cursor:'pointer', fontSize:'.75rem', fontWeight:600, marginRight:'.25rem', minHeight:'36px' },
     deactivateButton: { background:'#ff9800', color:'#fff', border:'none', padding:'.5rem .75rem', borderRadius:'var(--radius-sm)', cursor:'pointer', fontSize:'.75rem', fontWeight:600, minHeight:'36px' },
     activateButton: { background:'#17a2b8', color:'#fff', border:'none', padding:'.5rem .75rem', borderRadius:'var(--radius-sm)', cursor:'pointer', fontSize:'.75rem', fontWeight:600, minHeight:'36px' },
@@ -878,7 +1193,7 @@ const AdminManagement = () => {
     submitButton: { background:'var(--brand-green)', color:'#fff', border:'1px solid var(--brand-green)', padding:'.6rem 1.15rem', borderRadius:'var(--radius-md)', cursor:'pointer', fontSize:'.7rem', fontWeight:600, letterSpacing:'.5px' },
     cancelButton: { background:'#6c757d', color:'#fff', border:'1px solid #6c757d', padding:'.6rem 1.15rem', borderRadius:'var(--radius-md)', cursor:'pointer', fontSize:'.7rem', fontWeight:600 },
     backButton: { position:'absolute', top:'18px', left:'18px', background:'var(--brand-green)', color:'#fff', border:'1px solid var(--brand-green)', padding:'.55rem .95rem', borderRadius:'var(--radius-md)', cursor:'pointer', fontSize:'.65rem', fontWeight:600, letterSpacing:'.5px', boxShadow:'var(--brand-shadow-sm)' },
-    sortButton: { background:'#0f7030', color:'#fff', border:'1px solid #0f7030', padding:'.7rem 1.1rem', borderRadius:'var(--radius-md)', fontSize:'.7rem', fontWeight:600, cursor:'pointer', marginLeft:'.6rem' },
+    sortButton: { background:'#0f7030', color:'#fff', border:'1px solid #0f7030', padding:'.4rem .6rem', borderRadius:'var(--radius-md)', fontSize:'.65rem', fontWeight:600, cursor:'pointer' },
     // NEW styles for excel filter
     headerCell: { display:'flex', alignItems:'center', justifyContent:'space-between', gap:'.4rem' },
     filterTrigger: { background:'#fff', border:'1px solid var(--brand-border)', borderRadius:'3px', padding:'0 .25rem', fontSize:'.55rem', cursor:'pointer', lineHeight:1.4, color:'var(--brand-text-soft)' },
@@ -902,14 +1217,27 @@ const AdminManagement = () => {
   multiSelectContainer: { position:'relative' },
   multiSelectDisplay: { display:'flex', alignItems:'center', justifyContent:'space-between', gap:'.5rem', minHeight:'38px', padding:'.45rem .6rem', border:'1px solid var(--brand-border)', borderRadius:'var(--radius-md)', cursor:'pointer', background:'#fff' },
   caret: { fontSize:'.6rem', color:'var(--brand-text-soft)' },
-  multiSelectDropdown: { position:'absolute', top:'100%', left:0, right:0, zIndex:60, background:'#fff', border:'1px solid var(--brand-border)', borderRadius:'6px', boxShadow:'0 8px 20px rgba(0,0,0,0.12)', padding:'.5rem', marginTop:'.35rem' }
+  multiSelectDropdown: { position:'absolute', top:'100%', left:0, right:0, zIndex:60, background:'#fff', border:'1px solid var(--brand-border)', borderRadius:'6px', boxShadow:'0 8px 20px rgba(0,0,0,0.12)', padding:'.5rem', marginTop:'.35rem' },
+  // Search bar styles
+  searchContainer: { marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '.5rem' },
+  searchInput: { 
+    flex: 1, 
+    padding: '.75rem 1rem', 
+    border: '2px solid var(--brand-border)', 
+    borderRadius: 'var(--radius-md)', 
+    fontSize: '.875rem', 
+    background: '#fff', 
+    color: 'var(--brand-text)',
+    transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+    outline: 'none'
+  }
   };
 
   return (
     <div className="admin-management" style={styles.container}>
-      <AppHeader showUser={false} />
+      <AppHeader />
       <div style={styles.header}>
-        <h1 className="mobile-center" style={{...styles.title, fontSize: 'clamp(1.3rem, 4vw, 1.55rem)'}}>Admin Management</h1>
+        <h1 className="mobile-center" style={{...styles.title, fontSize: 'clamp(1.3rem, 4vw, 1.55rem)'}}>Data Management</h1>
       </div>
 
       <div className="nav-tabs" style={styles.tabs}>
@@ -946,11 +1274,30 @@ const AdminManagement = () => {
       </div>
 
       <div style={styles.content}>
-        <div className="btn-group" style={{marginBottom: '1rem'}}>
-          <button className="btn mobile-full-width" style={styles.createButton} onClick={handleCreate}>
+        {/* Search Bar */}
+        <div style={styles.searchContainer}>
+          <input
+            type="text"
+            placeholder={`Search ${activeTab.replace(/_/g, ' ')}...`}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={styles.searchInput}
+            onFocus={(e) => {
+              e.target.style.borderColor = 'var(--brand-green)';
+              e.target.style.boxShadow = '0 0 0 3px rgba(18, 141, 59, 0.1)';
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = 'var(--brand-border)';
+              e.target.style.boxShadow = 'none';
+            }}
+          />
+        </div>
+        
+        <div className="btn-group" style={{marginBottom: '1rem', display: 'flex', gap: '.5rem', alignItems: 'center'}}>
+          <button className="btn" style={styles.createButton} onClick={handleCreate}>
             {(() => {
               const singular = { salesmen: 'Salesman', sales_managers: 'Sales Manager', directors: 'Director', dealers: 'Dealer', products: 'Product' }[activeTab] || pretty(activeTab);
-              return `Add New ${singular}`;
+              return `Add ${singular}`;
             })()}
           </button>
           <button

@@ -10,12 +10,29 @@ const AppHeader = ({
   onLogoClick = '/home',
   showUser = true,
   showSignOut = true,
+  showHomeButton = true,
 }) => {
   const navigate = useNavigate();
   const user = auth?.currentUser;
 
   const defaultRight = (
     <>
+      {showHomeButton && (
+        <button
+          className="btn"
+          onClick={() => navigate('/home')}
+          style={{ 
+            marginRight: '1rem',
+            padding: '.5rem 1rem',
+            fontSize: '.75rem',
+            backgroundColor: 'var(--brand-green)',
+            color: '#fff',
+            border: '1px solid var(--brand-green)'
+          }}
+        >
+          Home
+        </button>
+      )}
       {showUser && (
         <span style={{ fontSize: '.8rem', fontWeight: 500 }}>
           {user?.displayName || user?.email}

@@ -50,7 +50,7 @@ const HomePage = () => {
 
   return (
     <div className="app-shell fade-in">
-      <AppHeader />
+      <AppHeader showHomeButton={false} />
       <main className="page">
         <h1
           className="section-title mobile-center"
