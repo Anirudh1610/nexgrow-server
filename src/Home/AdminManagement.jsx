@@ -48,6 +48,27 @@ const AdminManagement = () => {
     setSearchQuery('');
   }, [activeTab]);
 
+  // Helper function to find sales manager for a given state
+  const findSalesManagerForState = (state) => {
+    console.log('Looking for sales manager for state:', state);
+    console.log('Available sales managers:', salesManagers.map(sm => ({ name: sm.name, state: sm.state, active: sm.active })));
+    const found = salesManagers.find(sm => sm.state === state && sm.active !== false);
+    console.log('Found sales manager:', found);
+    return found;
+  };
+
+  // Debug function to show current state-manager mapping
+  const showStateMappings = () => {
+    const mappings = {};
+    salesManagers.forEach(sm => {
+      if (sm.active !== false) {
+        mappings[sm.state] = sm.name;
+      }
+    });
+    console.log('Current State → Sales Manager mappings:', mappings);
+    return mappings;
+  };
+
   useEffect(() => {
     if (openFilter) {
       setTempSelection(filterSelections[openFilter] ? [...filterSelections[openFilter]] : []);
@@ -94,7 +115,7 @@ const AdminManagement = () => {
       email: '',
       phone: '',
       state: '',
-  role: 'salesman',
+      role: 'salesman',
       admin: false,
       sales_manager: '',
       active: true
@@ -171,8 +192,21 @@ const AdminManagement = () => {
     setModalType('edit');
     setSelectedItem(item);
     const { _id, id, __v, ...rest } = item;
+    
     // Merge defaults to ensure new fields like salesmen_ids exist
-    setFormData({ ...formTemplates[activeTab], ...rest });
+    let editFormData = { ...formTemplates[activeTab], ...rest };
+    
+    // For products, auto-set GST percentage based on category
+    if (activeTab === 'products' && editFormData.category) {
+      const category = editFormData.category;
+      if (category === 'Granules' || category === 'Powders') {
+        editFormData.gst_percentage = 5;
+      } else if (category === 'Liquids') {
+        editFormData.gst_percentage = 18;
+      }
+    }
+    
+    setFormData(editFormData);
     setFormError('');
     setShowModal(true);
   };
@@ -397,12 +431,22 @@ const AdminManagement = () => {
     }
     // Duplicate guard (after merge handling)
     if (hasDuplicate()) return;
+    
+    // Auto-assign sales manager for salesmen based on state
+    let finalFormData = { ...formData };
+    if (activeTab === 'salesmen' && finalFormData.state) {
+      const assignedSalesManager = findSalesManagerForState(finalFormData.state);
+      if (assignedSalesManager) {
+        finalFormData.sales_manager = assignedSalesManager.name;
+      }
+    }
+    
     try {
       const url = modalType === 'create' 
         ? `${SERVER_API_URL}/orders/admin/${activeTab}`
         : `${SERVER_API_URL}/orders/admin/${activeTab}/${selectedItem.id || selectedItem._id}`;
       const method = modalType === 'create' ? 'POST' : 'PUT';
-      const { _id, id, __v, ...payload } = formData;
+      const { _id, id, __v, ...payload } = finalFormData;
       Object.keys(payload).forEach(k => {
         if (typeof formTemplates[activeTab][k] === 'number' && payload[k] !== '' && payload[k] !== null) {
           const num = Number(payload[k]);
@@ -496,7 +540,7 @@ const AdminManagement = () => {
                   <th style={styles.th}>Name</th>
                   <th style={styles.th}>Category</th>
                   <th style={styles.th}>Packing Size</th>
-                  <th style={styles.th}>Unit Price</th>
+                  <th style={styles.th}>Dealer Price</th>
                   <th style={styles.th}>GST %</th>
                   <th style={styles.th}>Actions</th>
                 </tr>
@@ -542,7 +586,7 @@ const AdminManagement = () => {
       sales_managers: [ { label:'Name', field:'name', type:'text' }, { label:'Email', field:'email', type:'text' }, { label:'Phone', field:'phone', type:'text' }, { label:'State', field:'state', type:'text' }, { label:'Team', field:'salesmen_ids', type:'team' } ],
       directors: [ { label:'Name', field:'name', type:'text' }, { label:'Email', field:'email', type:'text' }, { label:'Phone', field:'phone', type:'text' } ],
       dealers: [ { label:'Name', field:'name', type:'text' }, { label:'Phone', field:'phone', type:'text' }, { label:'State', field:'state', type:'text' }, { label:'Credit Limit', field:'credit_limit', type:'number' } ],
-      products: [ { label:'Name', field:'name', type:'text' }, { label:'Category', field:'category', type:'text' }, { label:'Packing Size', field:'packing_size', type:'text' }, { label:'Unit Price', field:'dealer_price_per_bottle', type:'number' }, { label:'GST %', field:'gst_percentage', type:'number' } ]
+      products: [ { label:'Name', field:'name', type:'text' }, { label:'Category', field:'category', type:'text' }, { label:'Packing Size', field:'packing_size', type:'text' }, { label:'Dealer Price', field:'dealer_price_per_bottle', type:'number' }, { label:'GST %', field:'gst_percentage', type:'number' } ]
     };
     switch (activeTab) { 
       case 'salesmen': data = salesmen; columnConfig = configs.salesmen; break; 
@@ -729,7 +773,7 @@ const AdminManagement = () => {
     sales_managers:['Name','Email','Phone','State','Team'], 
     directors:['Name','Email','Phone'], 
     dealers:['Name','Phone','State','Credit Limit'], 
-    products:['Name','Category','Packing Size','Unit Price','GST %'] 
+    products:['Name','Category','Packing Size','Dealer Price','GST %'] 
   }[activeTab];
     return (
       <div className="tableContainer" style={{ marginTop:'2rem', ...styles.tableContainer }}>
@@ -969,11 +1013,47 @@ const AdminManagement = () => {
                 <label style={styles.label}>State</label>
                 <StateDropdown
                   value={formData[field] || ''}
-                  onChange={(value) => setFormData({...formData, [field]: value})}
+                  onChange={(value) => {
+                    // Auto-assign sales manager for salesmen when state changes
+                    if (activeTab === 'salesmen' && value) {
+                      const assignedSalesManager = findSalesManagerForState(value);
+                      if (assignedSalesManager) {
+                        setFormData({
+                          ...formData, 
+                          [field]: value, 
+                          sales_manager: assignedSalesManager.name
+                        });
+                      } else {
+                        setFormData({
+                          ...formData, 
+                          [field]: value,
+                          sales_manager: ''
+                        });
+                      }
+                    } else {
+                      setFormData({...formData, [field]: value});
+                    }
+                  }}
                   required
                   showLabel={false}
                   style={styles.input}
                 />
+                {activeTab === 'salesmen' && formData[field] && (
+                  <div style={{ marginTop: '5px', fontSize: '12px' }}>
+                    {(() => {
+                      const assignedSalesManager = findSalesManagerForState(formData[field]);
+                      return assignedSalesManager ? (
+                        <span style={{ color: '#28a745' }}>
+                          ✓ Auto-assigned Sales Manager: {assignedSalesManager.name}
+                        </span>
+                      ) : (
+                        <span style={{ color: '#ffc107' }}>
+                          ⚠️ No sales manager assigned to this state yet
+                        </span>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
             );
           }
@@ -1043,7 +1123,23 @@ const AdminManagement = () => {
                 <label style={styles.label}>Category</label>
                 <select
                   value={formData[field] || ''}
-                  onChange={(e) => setFormData({...formData, [field]: e.target.value})}
+                  onChange={(e) => {
+                    const category = e.target.value;
+                    let gstPercentage = 18; // default
+                    
+                    // Set GST based on category
+                    if (category === 'Granules' || category === 'Powders') {
+                      gstPercentage = 5;
+                    } else if (category === 'Liquids') {
+                      gstPercentage = 18;
+                    }
+                    
+                    setFormData({
+                      ...formData, 
+                      [field]: category,
+                      gst_percentage: gstPercentage
+                    });
+                  }}
                   style={styles.input}
                   required
                 >
@@ -1056,43 +1152,82 @@ const AdminManagement = () => {
             );
           }
           
-          // Sales manager dropdown for salesmen
+          // Sales manager field for salesmen (read-only, auto-assigned)
           if (field === 'sales_manager' && activeTab === 'salesmen') {
             return (
               <div key={field} style={styles.formGroup}>
                 <label style={styles.label}>Sales Manager</label>
-                <select
-                  value={formData[field] || ''}
-                  onChange={(e) => setFormData({...formData, [field]: e.target.value})}
-                  style={styles.input}
-                >
-                  <option value="">Select Sales Manager</option>
-                  {managersFromSalesmen.map(manager => (
-                    <option key={manager.id || manager._id} value={manager.name}>
-                      {manager.name}
-                    </option>
-                  ))}
-                </select>
+                <input
+                  type="text"
+                  value={formData[field] || 'Auto-assigned based on state'}
+                  readOnly
+                  style={{
+                    ...styles.input,
+                    backgroundColor: '#f8f9fa',
+                    cursor: 'not-allowed',
+                    color: formData[field] ? '#28a745' : '#6c757d'
+                  }}
+                />
+                <div style={{ marginTop: '3px', fontSize: '11px', color: '#6c757d' }}>
+                  Automatically assigned when state is selected
+                </div>
               </div>
             );
           }
 
           // Only show sales_manager for salesmen
           if (field === 'sales_manager' && activeTab !== 'salesmen') return null;
+          
+          // GST percentage field for products (editable, with auto-set by category)
+          if (field === 'gst_percentage' && activeTab === 'products') {
+            const category = formData.category || '';
+            let helpText = '';
+            
+            if (category === 'Granules' || category === 'Powders') {
+              helpText = 'Auto-set to 5% for Granules/Powders';
+            } else if (category === 'Liquids') {
+              helpText = 'Auto-set to 18% for Liquids';
+            } else {
+              helpText = 'Select category for auto-setting';
+            }
+            
+            return (
+              <div key={field} style={styles.formGroup}>
+                <label style={styles.label}>GST %</label>
+                <input
+                  type="number"
+                  value={formData[field] || ''}
+                  onChange={(e) => setFormData({ ...formData, [field]: e.target.value })}
+                  style={styles.input}
+                  placeholder="Enter GST percentage"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                />
+                <div style={{ marginTop: '3px', fontSize: '11px', color: '#6c757d' }}>
+                  {helpText}
+                </div>
+              </div>
+            );
+          }
+          
           // Hide 'active' from all create/edit forms; managed via Activate/Deactivate in tables
           if (field === 'active') return null;
+          
+          // Hide bottle_volume field completely for non-liquid categories
+          if (field === 'bottle_volume' && activeTab === 'products') {
+            const isLiquidCategory = (formData.category || '').toLowerCase().includes('liquid');
+            if (!isLiquidCategory) return null;
+          }
+          
           const fieldType = typeof formTemplates[activeTab][field] === 'number' ? 'number' : 
                            field.includes('email') ? 'email' : 'text';
-
-          // Check if bottle_volume should be disabled (not liquid category)
-          const isLiquidCategory = (formData.category || '').toLowerCase().includes('liquid');
-          const isBottleVolumeDisabled = field === 'bottle_volume' && activeTab === 'products' && 
-                                         !isLiquidCategory;
           
           return (
             <div key={field} style={styles.formGroup}>
               <label style={styles.label}>
-                {field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, ' ')}
+                {field === 'dealer_price_per_bottle' ? 'Dealer Price' : 
+                 field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, ' ')}
               </label>
               <input
                 type={fieldType}
@@ -1107,17 +1242,9 @@ const AdminManagement = () => {
                     setFormData({ ...formData, [field]: e.target.value });
                   }
                 }}
-                style={{
-                  ...styles.input,
-                  ...(isBottleVolumeDisabled ? {
-                    backgroundColor: '#f5f5f5',
-                    color: '#999',
-                    cursor: 'not-allowed'
-                  } : {})
-                }}
-                disabled={isBottleVolumeDisabled}
+                style={styles.input}
                 required={modalType === 'create' && (!['phone','product_details','sales_manager','bottle_volume','dealer_price_per_bottle'].includes(field) || 
-                         (field === 'bottle_volume' && isLiquidCategory))}
+                         (field === 'bottle_volume' && (formData.category || '').toLowerCase().includes('liquid')))}
               />
             </div>
           );
