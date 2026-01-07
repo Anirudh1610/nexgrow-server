@@ -5,26 +5,21 @@ const getAPIBaseURL = () => {
     REACT_APP_API_BASE_URL: process.env.REACT_APP_API_BASE_URL
   });
   
-  // In production (Vercel), use the environment variable
+  // Use environment variable if set (for DigitalOcean App Platform)
   if (process.env.REACT_APP_API_BASE_URL) {
     console.log('Using environment variable:', process.env.REACT_APP_API_BASE_URL);
     return process.env.REACT_APP_API_BASE_URL;
   }
   
-  // For local development, check if running locally or on deployed environment
+  // For local development
   if (process.env.NODE_ENV === 'development') {
-    // If accessing from nex-grow.co.in, use production backend
-    if (window.location.hostname === 'nex-grow.co.in' || window.location.hostname === 'www.nex-grow.co.in') {
-      console.log('Using production backend from deployed frontend');
-      return "https://api.nex-grow.co.in";
-    }
     console.log('Using development default: http://localhost:8000');
     return "http://localhost:8000";
   }
   
-  // For production, use api subdomain with HTTPS
-  console.log('Using production API: https://api.nex-grow.co.in');
-  return "https://api.nex-grow.co.in";
+  // For production on DigitalOcean, use IP address temporarily until DNS propagates
+  console.log('Using production API: http://209.38.122.225:8000');
+  return "http://209.38.122.225:8000";
 };
 
 export const config = {
