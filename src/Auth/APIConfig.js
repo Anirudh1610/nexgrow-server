@@ -16,15 +16,15 @@ const getAPIBaseURL = () => {
     // If accessing from nex-grow.co.in, use production backend
     if (window.location.hostname === 'nex-grow.co.in' || window.location.hostname === 'www.nex-grow.co.in') {
       console.log('Using production backend from deployed frontend');
-      return "https://api.nex-grow.co.in";
+      return "http://209.38.122.225:8000";
     }
     console.log('Using development default: http://localhost:8000');
     return "http://localhost:8000";
   }
   
-  // For production fallback, use production API
-  console.log('Using production API: https://api.nex-grow.co.in');
-  return "https://api.nex-grow.co.in";
+  // For production fallback, use DigitalOcean backend
+  console.log('Using production backend: http://209.38.122.225:8000');
+  return "http://209.38.122.225:8000";
 };
 
 export const config = {
