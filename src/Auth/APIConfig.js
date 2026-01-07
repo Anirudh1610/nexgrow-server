@@ -16,8 +16,8 @@ const getAPIBaseURL = () => {
   if (typeof window !== 'undefined' && 
       (window.location.hostname === 'nex-grow.co.in' || 
        window.location.hostname === 'www.nex-grow.co.in')) {
-    console.log('Using production API: http://209.38.122.225:8000');
-    return "http://209.38.122.225:8000";
+    console.log('Using production API subdomain: https://api.nex-grow.co.in');
+    return "https://api.nex-grow.co.in";
   }
   
   // For local development
