@@ -1,8 +1,9 @@
-// Get API base URL from environment variable or use default for development
+// Get API base URL from environment variable or use default
 const getAPIBaseURL = () => {
   console.log('Environment check:', {
     NODE_ENV: process.env.NODE_ENV,
-    REACT_APP_API_BASE_URL: process.env.REACT_APP_API_BASE_URL
+    REACT_APP_API_BASE_URL: process.env.REACT_APP_API_BASE_URL,
+    hostname: typeof window !== 'undefined' ? window.location.hostname : 'server'
   });
   
   // Use environment variable if set (for DigitalOcean App Platform)
@@ -11,15 +12,17 @@ const getAPIBaseURL = () => {
     return process.env.REACT_APP_API_BASE_URL;
   }
   
-  // For local development
-  if (process.env.NODE_ENV === 'development') {
-    console.log('Using development default: http://localhost:8000');
-    return "http://localhost:8000";
+  // Check if running on deployed site (nex-grow.co.in)
+  if (typeof window !== 'undefined' && 
+      (window.location.hostname === 'nex-grow.co.in' || 
+       window.location.hostname === 'www.nex-grow.co.in')) {
+    console.log('Using production API: http://209.38.122.225:8000');
+    return "http://209.38.122.225:8000";
   }
   
-  // For production on DigitalOcean, use IP address temporarily until DNS propagates
-  console.log('Using production API: http://209.38.122.225:8000');
-  return "http://209.38.122.225:8000";
+  // For local development
+  console.log('Using development default: http://localhost:8000');
+  return "http://localhost:8000";
 };
 
 export const config = {
