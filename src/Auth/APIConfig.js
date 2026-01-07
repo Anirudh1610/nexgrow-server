@@ -11,15 +11,20 @@ const getAPIBaseURL = () => {
     return process.env.REACT_APP_API_BASE_URL;
   }
   
-  // For local development, use localhost
+  // For local development, check if running locally or on deployed environment
   if (process.env.NODE_ENV === 'development') {
+    // If accessing from nex-grow.co.in, use production backend
+    if (window.location.hostname === 'nex-grow.co.in' || window.location.hostname === 'www.nex-grow.co.in') {
+      console.log('Using production backend from deployed frontend');
+      return "https://api.nex-grow.co.in";
+    }
     console.log('Using development default: http://localhost:8000');
     return "http://localhost:8000";
   }
   
-  // For production fallback, use DigitalOcean droplet
-  console.log('Using production fallback: http://209.38.122.225');
-  return "http://209.38.122.225";
+  // For production fallback, use production API
+  console.log('Using production API: https://api.nex-grow.co.in');
+  return "https://api.nex-grow.co.in";
 };
 
 export const config = {
