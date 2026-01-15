@@ -1,0 +1,30 @@
+name: nexgrow-client
+region: nyc
+
+static_sites:
+  - name: frontend
+    github:
+      repo: Anirudh1610/nexgrow-server
+      branch: main
+      deploy_on_push: true
+    
+    build_command: npm run build
+    output_dir: build
+    
+    # Handle React Router - serve index.html for all routes
+    catchall_document: index.html
+    
+    # Optimize with caching
+    routes:
+      - path: /static
+        preserve_path_prefix: false
+    
+    # Optional: Environment variables
+    envs: []
+
+# Optional: Add domain configuration
+# domains:
+#   - domain: nex-grow.co.in
+#     type: PRIMARY
+#   - domain: www.nex-grow.co.in
+#     type: ALIAS

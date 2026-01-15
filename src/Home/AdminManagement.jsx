@@ -447,6 +447,17 @@ const AdminManagement = () => {
         : `${SERVER_API_URL}/orders/admin/${activeTab}/${selectedItem.id || selectedItem._id}`;
       const method = modalType === 'create' ? 'POST' : 'PUT';
       const { _id, id, __v, ...payload } = finalFormData;
+      
+      // If editing a salesman/sales_manager/director and email changed, clear firebase_uid to force re-linking
+      if (modalType === 'edit' && (activeTab === 'salesmen' || activeTab === 'sales_managers' || activeTab === 'directors')) {
+        const originalEmail = normalize(selectedItem?.email || '');
+        const newEmail = normalize(payload.email || '');
+        if (originalEmail && newEmail && originalEmail !== newEmail) {
+          payload.firebase_uid = null; // Clear the Firebase UID so user can re-link with new email
+          console.log(`Email changed from ${originalEmail} to ${newEmail}, clearing firebase_uid for re-linking`);
+        }
+      }
+      
       Object.keys(payload).forEach(k => {
         if (typeof formTemplates[activeTab][k] === 'number' && payload[k] !== '' && payload[k] !== null) {
           const num = Number(payload[k]);
@@ -457,6 +468,17 @@ const AdminManagement = () => {
       if (response.ok) {
         setShowModal(false);
         fetchData();
+        
+        // Show success message with additional info if email was changed
+        if (modalType === 'edit' && (activeTab === 'salesmen' || activeTab === 'sales_managers' || activeTab === 'directors')) {
+          const originalEmail = normalize(selectedItem?.email || '');
+          const newEmail = normalize(payload.email || '');
+          if (originalEmail && newEmail && originalEmail !== newEmail) {
+            setTimeout(() => {
+              alert(`Email updated successfully!\n\nNote: The user will need to sign in with their new Google account (${newEmail}) to access the system.`);
+            }, 300);
+          }
+        }
       } else {
         const errorText = await response.text();
         console.error('Server response:', response.status, errorText);
@@ -581,7 +603,7 @@ const AdminManagement = () => {
     let data, columnConfig;
     // Define column configs with field mapping & type
     const configs = {
-      salesmen: [ { label:'Name', field:'name', type:'text' }, { label:'Email', field:'email', type:'text' }, { label:'Phone', field:'phone', type:'text' }, { label:'State', field:'state', type:'text' }, { label:'Role', field:'role', type:'text' }, { label:'Admin', field:'admin', type:'boolean' }, { label:'Sales Manager', field:'sales_manager', type:'text' } ],
+      salesmen: [ { label:'Name', field:'name', type:'text' }, { label:'Email', field:'email', type:'text' }, { label:'Phone', field:'phone', type:'text' }, { label:'State', field:'state', type:'text' }, { label:'Sales Manager', field:'sales_manager', type:'text' } ],
       // Add Team column (non-filterable) for managers
       sales_managers: [ { label:'Name', field:'name', type:'text' }, { label:'Email', field:'email', type:'text' }, { label:'Phone', field:'phone', type:'text' }, { label:'State', field:'state', type:'text' }, { label:'Team', field:'salesmen_ids', type:'team' } ],
       directors: [ { label:'Name', field:'name', type:'text' }, { label:'Email', field:'email', type:'text' }, { label:'Phone', field:'phone', type:'text' } ],
@@ -612,7 +634,7 @@ const AdminManagement = () => {
       
       // Search across relevant fields based on active tab
       const searchFields = {
-        salesmen: ['name', 'email', 'phone', 'state', 'role', 'sales_manager'],
+        salesmen: ['name', 'email', 'phone', 'state', 'sales_manager'],
         sales_managers: ['name', 'email', 'phone', 'state'],
         directors: ['name', 'email', 'phone'],
         dealers: ['name', 'phone', 'state'],
@@ -769,7 +791,7 @@ const AdminManagement = () => {
     const inactive = data.filter(it => it.active === false);
     if (inactive.length === 0) return null;
   const cols = { 
-    salesmen:['Name','Email','Phone','State','Role','Admin','Sales Manager'], 
+    salesmen:['Name','Email','Phone','State','Sales Manager'], 
     sales_managers:['Name','Email','Phone','State','Team'], 
     directors:['Name','Email','Phone'], 
     dealers:['Name','Phone','State','Credit Limit'], 
