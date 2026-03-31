@@ -3,6 +3,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './Auth/AuthConfig';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Landing from './Landing/Landing';
+import ChangePasswordPage from './Auth/ChangePasswordPage';
 import OrderForm from './Home/OrderForm';
 import Orders from './Home/Orders';
 import HomePage from './Home/HomePage';
@@ -20,6 +21,17 @@ import SalesManager from './Home/SalesManager';
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // One-time migration: clear any stale hasChangedPassword so all existing
+  // users are prompted to change their password. Runs only once per browser.
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem('migrationV1')) {
+        localStorage.removeItem('hasChangedPassword');
+        localStorage.setItem('migrationV1', 'done');
+      }
+    } catch {}
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -55,6 +67,14 @@ function App() {
         if (currentUser) {
           const minimal = { uid: currentUser.uid, email: currentUser.email };
           localStorage.setItem('nexgrow_user', JSON.stringify(minimal));
+          // If this user hasn't changed their password yet, redirect them
+          const hasChangedPassword = localStorage.getItem('hasChangedPassword');
+          if (hasChangedPassword !== 'true') {
+            // Use window.location to avoid needing the router hook here
+            if (!window.location.pathname.includes('/change-password') && !window.location.pathname.includes('/login')) {
+              window.location.replace('/change-password');
+            }
+          }
         } else {
           localStorage.removeItem('nexgrow_user');
         }
@@ -217,6 +237,14 @@ function App() {
       <Routes>
         <Route path="/login" element={user ? <Navigate to="/home" replace /> : <Landing />} />
         <Route path="/" element={user ? <Navigate to="/home" replace /> : <Navigate to="/login" replace />} />
+        <Route
+          path="/change-password"
+          element={
+            user
+              ? <ChangePasswordPage />
+              : <Navigate to="/login" replace />
+          }
+        />
         <Route path="/home" element={<ProtectedRoute user={user}><HomePage /></ProtectedRoute>} />
         <Route path="/order-form" element={<ProtectedRoute user={user}><OrderForm onSignOut={handleSignOut} /></ProtectedRoute>} />
         <Route path="/orders" element={<ProtectedRoute user={user}><Orders /></ProtectedRoute>} />

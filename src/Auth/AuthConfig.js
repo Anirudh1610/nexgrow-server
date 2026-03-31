@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore'; // added import
 
 // Updated Firebase config
@@ -31,4 +31,10 @@ export const signInWithGoogle = async () => {
     console.error('Error signing in with Google:', error);
     throw error;
   }
+};
+
+// Email/Password Sign-In function
+export const signInWithEmail = async (email, password) => {
+  const result = await signInWithEmailAndPassword(auth, email, password);
+  return result.user;
 };
