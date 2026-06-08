@@ -419,6 +419,22 @@ const AdminOrders = () => {
                         </strong>{' '}
                         {order.state}
                       </span>
+                      {(() => {
+                        const raw = order.created_at || order.createdAt || order.date || order.timestamp;
+                        if (!raw) return null;
+                        const d = new Date(raw);
+                        if (isNaN(d)) return null;
+                        return (
+                          <span>
+                            <strong style={{ color: 'var(--brand-text)' }}>Date:</strong>{' '}
+                            {d.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })}
+                            {' '}
+                            <span style={{ color: 'var(--brand-text-soft)' }}>
+                              {d.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })}
+                            </span>
+                          </span>
+                        );
+                      })()}
                     </div>
                     {order.products && order.products.length > 0 && (
                       <ul
@@ -429,11 +445,39 @@ const AdminOrders = () => {
                           listStyle: 'disc',
                         }}
                       >
-                        {order.products.map((p, i) => (
-                          <li key={i} style={{ margin: '2px 0' }}>
-                            {p.product_name || p.product_id} - Qty: {formatINR(p.quantity,{decimals:0})} {p.price ? `- ₹${formatINR(p.price)}` : ''}
-                          </li>
-                        ))}
+                        {order.products.map((p, i) => {
+                          const base = p.price || 0;
+                          const discounted = p.discounted_price != null ? p.discounted_price : base;
+                          const hasDiscount = discounted < base - 0.01;
+                          return (
+                            <li key={i} style={{ margin: '2px 0' }}>
+                              {p.product_name || p.product_id} — Qty: {p.quantity}
+                              {base > 0 && (
+                                <>
+                                  {' — '}
+                                  {hasDiscount ? (
+                                    <>
+                                      <span style={{ textDecoration: 'line-through', color: 'var(--brand-text-soft)' }}>
+                                        ₹{formatINR(base)}
+                                      </span>
+                                      {' '}
+                                      <strong style={{ color: 'var(--brand-green)' }}>
+                                        ₹{formatINR(discounted)}
+                                      </strong>
+                                      {p.discount_pct > 0 && (
+                                        <span style={{ color: '#f59e0b', marginLeft: '4px' }}>
+                                          ({formatPercent(p.discount_pct, { decimals: 1 })}% off)
+                                        </span>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <span>₹{formatINR(base)}</span>
+                                  )}
+                                </>
+                              )}
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                     <div

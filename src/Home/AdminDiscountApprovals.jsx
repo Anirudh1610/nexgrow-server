@@ -305,13 +305,14 @@ const AdminDiscountApprovals = () => {
                           })()}
                           <span>Effective: {formatPercent(effectivePct,{decimals:1})}%</span>
                         </div>
-                        
-                        <div style={{marginTop:'1rem',display:'flex',gap:'.75rem'}}>
-                          <button className="btn" onClick={(e) => {e.stopPropagation(); handleApprove(orderId);}}>Approve</button>
-                          <button className="btn danger" onClick={(e) => {e.stopPropagation(); handleReject(orderId);}}>Reject</button>
-                        </div>
                       </div>
                     )}
+
+                    {/* Approve / Reject always visible */}
+                    <div style={{marginTop:'1rem', display:'flex', gap:'.75rem'}}>
+                      <button className="btn" onClick={(e) => {e.stopPropagation(); handleApprove(orderId);}}>Approve</button>
+                      <button className="btn danger" onClick={(e) => {e.stopPropagation(); handleReject(orderId);}}>Reject</button>
+                    </div>
                   </div>
                 );
               }); })()}

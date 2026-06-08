@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { getAuth, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { getAuth, updatePassword, EmailAuthProvider, reauthenticateWithCredential, signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 
 const DEFAULT_PASSWORD = 'Nexfarm2026';
@@ -12,6 +12,13 @@ export default function ChangePasswordPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    const auth = getAuth();
+    localStorage.removeItem('hasChangedPassword');
+    await signOut(auth);
+    navigate('/login', { replace: true });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -189,6 +196,20 @@ export default function ChangePasswordPage() {
             }}
           >
             {loading ? 'Updating…' : 'Set Password & Continue'}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            style={{
+              width: '100%', padding: '0.75rem',
+              background: 'none', color: '#6b7280',
+              border: '1px solid #d1d5db', borderRadius: '8px',
+              fontSize: '0.95rem', fontWeight: 500,
+              cursor: 'pointer', marginTop: '0.6rem',
+            }}
+          >
+            Logout
           </button>
         </form>
       </div>
