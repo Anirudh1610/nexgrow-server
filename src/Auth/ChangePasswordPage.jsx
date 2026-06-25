@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { getAuth, updatePassword, EmailAuthProvider, reauthenticateWithCredential, signOut } from 'firebase/auth';
+import { getAuth, updatePassword, signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
-
-const DEFAULT_PASSWORD = 'Nexfarm2026';
+import axios from 'axios';
+import { SERVER_API_URL } from './APIConfig';
 
 export default function ChangePasswordPage() {
   const [newPassword, setNewPassword] = useState('');
@@ -32,10 +32,6 @@ export default function ChangePasswordPage() {
       setError('Password must be at least 8 characters.');
       return;
     }
-    if (newPassword === DEFAULT_PASSWORD) {
-      setError('Your new password cannot be the same as the default password.');
-      return;
-    }
     if (newPassword !== confirmPassword) {
       setError('Passwords do not match.');
       return;
@@ -51,17 +47,13 @@ export default function ChangePasswordPage() {
         return;
       }
 
-      // Re-authenticate with default password before changing
-      const credential = EmailAuthProvider.credential(user.email, DEFAULT_PASSWORD);
-      await reauthenticateWithCredential(user, credential);
-
-      // Update password in Firebase
       await updatePassword(user, newPassword);
 
-      // Mark as changed in localStorage
-      localStorage.setItem('hasChangedPassword', 'true');
+      // Notify backend so must_change_password is cleared
+      await axios.post(`${SERVER_API_URL}/orders/me/password-changed`, null, {
+        params: { uid: user.uid, email: user.email },
+      });
 
-      // Go to home
       navigate('/home', { replace: true });
     } catch (err) {
       console.error('Change password error:', err);
@@ -176,7 +168,7 @@ export default function ChangePasswordPage() {
               Password requirements:
             </p>
             <p style={{ margin: '0 0 0.2rem', fontSize: '0.8rem', color: '#374151' }}>• At least 8 characters</p>
-            <p style={{ margin: 0, fontSize: '0.8rem', color: '#374151' }}>• Cannot be the default password (Nexfarm2026)</p>
+            <p style={{ margin: 0, fontSize: '0.8rem', color: '#374151' }}>• Cannot be the same as your temporary password</p>
           </div>
 
           {error && (

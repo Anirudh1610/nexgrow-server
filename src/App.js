@@ -22,63 +22,53 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // One-time migration: clear any stale hasChangedPassword so all existing
-  // users are prompted to change their password. Runs only once per browser.
   useEffect(() => {
-    try {
-      if (!localStorage.getItem('migrationV1')) {
-        localStorage.removeItem('hasChangedPassword');
-        localStorage.setItem('migrationV1', 'done');
-      }
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
-      // Auto-link Firebase UID to salesman or director by email (idempotent)
-      (async () => {
+
+      if (currentUser?.uid && currentUser?.email) {
         try {
-          if (currentUser?.uid && currentUser?.email) {
-            const key = `nexgrow_link_${currentUser.uid}`;
-            // Optional: avoid spamming on rapid reloads
-            if (!localStorage.getItem(key)) {
-              const payload = { uid: currentUser.uid, email: currentUser.email };
-              // Try primary (/api base), then fallback to non-/api base to handle deployments without the prefix
-              try {
-                await axios.post(`${SERVER_API_URL}/orders/link-uid`, payload);
-              } catch (err) {
-                const status = err?.response?.status;
-                if (status === 404 || status === 405) {
-                  await axios.post(`${API_BASE_URL}/orders/link-uid`, payload);
-                } else {
-                  throw err;
-                }
-              }
-              try { localStorage.setItem(key, '1'); } catch {}
+          const minimal = { uid: currentUser.uid, email: currentUser.email };
+          localStorage.setItem('nexgrow_user', JSON.stringify(minimal));
+        } catch {}
+
+        try {
+          // Check must_change_password from backend
+          const meResponse = await axios.get(`${SERVER_API_URL}/orders/me`, {
+            params: { uid: currentUser.uid, email: currentUser.email },
+          });
+          if (meResponse.data.must_change_password) {
+            if (!window.location.pathname.includes('/change-password')) {
+              window.location.replace('/change-password');
+              return;
             }
           }
         } catch (e) {
-          // Non-blocking; proceed even if linking fails
-          console.warn('Auto-link UID failed:', e?.response?.data || e?.message || e);
+          console.warn('Failed to check must_change_password:', e?.message);
         }
-      })();
-      try {
-        if (currentUser) {
-          const minimal = { uid: currentUser.uid, email: currentUser.email };
-          localStorage.setItem('nexgrow_user', JSON.stringify(minimal));
-          // If this user hasn't changed their password yet, redirect them
-          const hasChangedPassword = localStorage.getItem('hasChangedPassword');
-          if (hasChangedPassword !== 'true') {
-            // Use window.location to avoid needing the router hook here
-            if (!window.location.pathname.includes('/change-password') && !window.location.pathname.includes('/login')) {
-              window.location.replace('/change-password');
+
+        // Auto-link Firebase UID (idempotent)
+        try {
+          const key = `nexgrow_link_${currentUser.uid}`;
+          if (!localStorage.getItem(key)) {
+            const payload = { uid: currentUser.uid, email: currentUser.email };
+            try {
+              await axios.post(`${SERVER_API_URL}/orders/link-uid`, payload);
+            } catch (err) {
+              const status = err?.response?.status;
+              if (status === 404 || status === 405) {
+                await axios.post(`${API_BASE_URL}/orders/link-uid`, payload);
+              }
             }
+            try { localStorage.setItem(key, '1'); } catch {}
           }
-        } else {
-          localStorage.removeItem('nexgrow_user');
+        } catch (e) {
+          console.warn('Auto-link UID failed:', e?.message);
         }
-      } catch {}
+      } else {
+        try { localStorage.removeItem('nexgrow_user'); } catch {}
+      }
+
       setLoading(false);
     });
 
