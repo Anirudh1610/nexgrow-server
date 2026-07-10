@@ -5,6 +5,7 @@ import { SERVER_API_URL } from '../Auth/APIConfig';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { formatINR, formatPercent, calculateGST, calculateTotalWithGST } from './numberFormat';
+import AppHeader from '../components/AppHeader';
 
 const OrderForm = ({ onSignOut }) => {
   const navigate = useNavigate();
@@ -540,13 +541,7 @@ const OrderForm = ({ onSignOut }) => {
 
   return (
     <div className="app-shell">
-      <header className="app-header">
-        <div className="app-header__logo" onClick={()=>navigate('/home')}>NEXGROW</div>
-        <div className="app-header__actions">
-          <span style={{fontSize:'.8rem', fontWeight: 500}}>{user.displayName || user.email}</span>
-          <button className="btn danger" onClick={async()=>{ await signOut(auth); try { localStorage.removeItem('nexgrow_uid'); } catch {}; navigate('/'); }}>Sign Out</button>
-        </div>
-      </header>
+      <AppHeader showHomeButton={false} />
       <main className="page narrow fade-in">
         <div className="surface-card elevated" style={{marginBottom:'1.5rem'}}>
           <h1 className="section-title">Create New Order</h1>
@@ -616,7 +611,7 @@ const OrderForm = ({ onSignOut }) => {
                     {entry.priceDetails && (
                       <div style={{marginTop:'.75rem',fontSize:'.8rem',fontWeight:600,color:'var(--brand-text)'}}>
                         <div>
-                          Line Total: {formatINR(base)}{pct>0 && <span style={{color: '#b91c1c'}}> - {pct}% ({formatINR(lineDiscountAmt)})</span>} → <span style={{color:'var(--brand-green-dark)', fontWeight: 700}}>{formatINR(after)}</span>
+                          Line Total: {formatINR(base)}{pct>0 && <span style={{color: 'var(--color-error)'}}> - {pct}% ({formatINR(lineDiscountAmt)})</span>} → <span style={{color:'var(--brand-green-dark)', fontWeight: 700}}>{formatINR(after)}</span>
                         </div>
                         {(() => {
                           const selectedProduct = products.find(p => (p._id || p.id) === entry.product);
@@ -689,7 +684,7 @@ const OrderForm = ({ onSignOut }) => {
               </div>
               <div style={{fontSize:'1rem',fontWeight:600,display:'grid',rowGap:6, background: 'var(--brand-surface-alt)', padding: '1rem', borderRadius: 'var(--radius-md)'}}>
                 <span>Total Before Discount: {formatINR(orderSummary.totalPrice)}</span>
-                {orderSummary.totalDiscountAmount>0 && <span style={{color: '#b91c1c'}}>Total Discount: -{formatINR(orderSummary.totalDiscountAmount)}</span>}
+                {orderSummary.totalDiscountAmount>0 && <span style={{color: 'var(--color-error)'}}>Total Discount: -{formatINR(orderSummary.totalDiscountAmount)}</span>}
                 <span>Subtotal: {formatINR(orderSummary.discountedTotal)}</span>
                 {orderSummary.gstTotal > 0 && <span>GST: {formatINR(orderSummary.gstTotal)}</span>}
                 <span style={{fontSize: '1.1rem', fontWeight: 700, color: 'var(--brand-green-dark)'}}>Grand Total: {formatINR(orderSummary.grandTotal)}</span>

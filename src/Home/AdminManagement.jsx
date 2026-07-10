@@ -1065,12 +1065,12 @@ const AdminManagement = () => {
                     {(() => {
                       const assignedSalesManager = findSalesManagerForState(formData[field]);
                       return assignedSalesManager ? (
-                        <span style={{ color: '#28a745' }}>
-                          ✓ Auto-assigned Sales Manager: {assignedSalesManager.name}
+                        <span style={{ color: 'var(--color-success-text)' }}>
+                          Auto-assigned Sales Manager: {assignedSalesManager.name}
                         </span>
                       ) : (
-                        <span style={{ color: '#ffc107' }}>
-                          ⚠️ No sales manager assigned to this state yet
+                        <span style={{ color: 'var(--color-warning-text)' }}>
+                          No sales manager assigned to this state yet
                         </span>
                       );
                     })()}
@@ -1185,12 +1185,12 @@ const AdminManagement = () => {
                   readOnly
                   style={{
                     ...styles.input,
-                    backgroundColor: '#f8f9fa',
+                    backgroundColor: 'var(--brand-surface-alt)',
                     cursor: 'not-allowed',
-                    color: formData[field] ? '#28a745' : '#6c757d'
+                    color: formData[field] ? 'var(--color-success-text)' : 'var(--brand-text-soft)'
                   }}
                 />
-                <div style={{ marginTop: '3px', fontSize: '11px', color: '#6c757d' }}>
+                <div style={{ marginTop: '3px', fontSize: '11px', color: 'var(--brand-text-soft)' }}>
                   Automatically assigned when state is selected
                 </div>
               </div>
@@ -1226,7 +1226,7 @@ const AdminManagement = () => {
                   max="100"
                   step="0.01"
                 />
-                <div style={{ marginTop: '3px', fontSize: '11px', color: '#6c757d' }}>
+                <div style={{ marginTop: '3px', fontSize: '11px', color: 'var(--brand-text-soft)' }}>
                   {helpText}
                 </div>
               </div>
@@ -1290,14 +1290,14 @@ const AdminManagement = () => {
 
   const styles = {
     container: { display:'flex', flexDirection:'column', minHeight:'100vh', background:'var(--brand-bg)', color:'var(--brand-text)', width:'100%', maxWidth:'100%', overflowX:'auto', paddingRight: window.innerWidth <= 768 ? '0' : '2rem' },
-    header: { textAlign:'center', marginBottom:'0', backgroundColor:'#ffffff', paddingTop:'1rem', paddingBottom:'.5rem', width:'100%', maxWidth:'100%' },
+    header: { textAlign:'center', marginBottom:'0', backgroundColor:'var(--brand-surface)', paddingTop:'1rem', paddingBottom:'.5rem', width:'100%', maxWidth:'100%' },
     title: { fontSize:'clamp(1.2rem, 4vw, 1.55rem)', fontWeight:700, letterSpacing:'.3px', margin:0, background:'linear-gradient(90deg,#128d3b,#2fbf62)', WebkitBackgroundClip:'text', color:'transparent' },
-    tabs: { display:'flex', justifyContent:'center', gap:'.5rem', marginBottom:'1rem', flexWrap:'wrap', position:'sticky', top:'0', zIndex:50, backgroundColor:'#ffffff', paddingTop:'.5rem', paddingBottom:'.75rem', borderBottom:'1px solid #e0e0e0', width:'100%', maxWidth:'100%' },
-    tab: { padding:'.5rem .8rem', background:'#fff', color:'var(--brand-green-dark)', border:'1px solid var(--brand-green)', borderRadius:'var(--radius-md)', cursor:'pointer', fontSize:'.7rem', fontWeight:500, letterSpacing:'.3px', transition:'var(--transition-base)' },
+    tabs: { display:'flex', justifyContent:'center', gap:'.5rem', marginBottom:'1rem', flexWrap:'wrap', position:'sticky', top:'0', zIndex:50, backgroundColor:'var(--brand-surface)', paddingTop:'.5rem', paddingBottom:'.75rem', borderBottom:'1px solid var(--brand-border)', width:'100%', maxWidth:'100%' },
+    tab: { padding:'.5rem .8rem', background:'var(--brand-surface)', color:'var(--brand-green-dark)', border:'1px solid var(--brand-green)', borderRadius:'var(--radius-md)', cursor:'pointer', fontSize:'.7rem', fontWeight:500, letterSpacing:'.3px', transition:'var(--transition-base)' },
     activeTab: { background:'var(--brand-green)', color:'#fff', boxShadow:'var(--brand-shadow-sm)' },
     content: { background:'var(--brand-surface)', border:'1px solid var(--brand-border)', borderRadius:'var(--radius-lg)', padding:'1rem', maxWidth: window.innerWidth <= 768 ? '100%' : 'calc(100% - 2rem)', margin:'0 0 1rem 0', width: window.innerWidth <= 768 ? '100%' : 'calc(100% - 2rem)', boxShadow:'var(--brand-shadow-sm)', overflowX:'auto' },
     createButton: { background:'var(--brand-green)', color:'#fff', border:'1px solid var(--brand-green)', padding:'.4rem .6rem', borderRadius:'var(--radius-md)', fontSize:'.65rem', fontWeight:600, letterSpacing:'.3px', cursor:'pointer', boxShadow:'var(--brand-shadow-sm)', transition:'var(--transition-base)' },
-    tableContainer: { overflowX:'auto', marginTop:'.5rem', width:'100%', maxWidth:'100%', border:'1px solid #ddd', borderRadius:'4px', padding:'.5rem', boxSizing:'border-box', WebkitOverflowScrolling:'touch', scrollBehavior:'smooth' },
+    tableContainer: { overflowX:'auto', marginTop:'.5rem', width:'100%', maxWidth:'100%', border:'1px solid var(--brand-border)', borderRadius:'4px', padding:'.5rem', boxSizing:'border-box', WebkitOverflowScrolling:'touch', scrollBehavior:'smooth' },
     table: { 
       borderCollapse:'collapse', 
       fontSize:'.7rem', 
@@ -1333,49 +1333,49 @@ const AdminManagement = () => {
     deactivateButton: { background:'#ff9800', color:'#fff', border:'none', padding:'.5rem .75rem', borderRadius:'var(--radius-sm)', cursor:'pointer', fontSize:'.75rem', fontWeight:600, minHeight:'36px' },
     activateButton: { background:'#17a2b8', color:'#fff', border:'none', padding:'.5rem .75rem', borderRadius:'var(--radius-sm)', cursor:'pointer', fontSize:'.75rem', fontWeight:600, minHeight:'36px' },
     modal: { position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 },
-    modalContent: { background:'#fff', padding:'1.75rem 1.5rem 2rem', borderRadius:'var(--radius-xl)', maxWidth:'520px', width:'95%', maxHeight:'85vh', overflow:'auto', boxShadow:'var(--brand-shadow-lg)' },
+    modalContent: { background:'var(--modal-bg)', padding:'1.75rem 1.5rem 2rem', borderRadius:'var(--radius-xl)', maxWidth:'520px', width:'95%', maxHeight:'85vh', overflow:'auto', boxShadow:'var(--brand-shadow-lg)' },
     form: { display:'flex', flexDirection:'column', gap:'.85rem', marginTop:'.75rem' },
     formGroup: { display:'flex', flexDirection:'column', gap:'.35rem' },
     label: { fontSize:'.65rem', fontWeight:600, letterSpacing:'.7px', textTransform:'uppercase', color:'var(--brand-text-soft)' },
-    input: { padding:'.65rem .75rem', border:'1px solid var(--brand-border)', borderRadius:'var(--radius-md)', fontSize:'.75rem', background:'#fff', color:'var(--brand-text)' },
+    input: { padding:'.65rem .75rem', border:'1px solid var(--brand-border)', borderRadius:'var(--radius-md)', fontSize:'.75rem', background:'var(--input-bg)', color:'var(--brand-text)' },
     formActions: { display:'flex', gap:'.65rem', justifyContent:'flex-end', marginTop:'.5rem' },
     submitButton: { background:'var(--brand-green)', color:'#fff', border:'1px solid var(--brand-green)', padding:'.6rem 1.15rem', borderRadius:'var(--radius-md)', cursor:'pointer', fontSize:'.7rem', fontWeight:600, letterSpacing:'.5px' },
-    cancelButton: { background:'#6c757d', color:'#fff', border:'1px solid #6c757d', padding:'.6rem 1.15rem', borderRadius:'var(--radius-md)', cursor:'pointer', fontSize:'.7rem', fontWeight:600 },
+    cancelButton: { background:'var(--brand-text-soft)', color:'var(--brand-surface)', border:'1px solid var(--brand-border)', padding:'.6rem 1.15rem', borderRadius:'var(--radius-md)', cursor:'pointer', fontSize:'.7rem', fontWeight:600 },
     backButton: { position:'absolute', top:'18px', left:'18px', background:'var(--brand-green)', color:'#fff', border:'1px solid var(--brand-green)', padding:'.55rem .95rem', borderRadius:'var(--radius-md)', cursor:'pointer', fontSize:'.65rem', fontWeight:600, letterSpacing:'.5px', boxShadow:'var(--brand-shadow-sm)' },
     sortButton: { background:'#0f7030', color:'#fff', border:'1px solid #0f7030', padding:'.4rem .6rem', borderRadius:'var(--radius-md)', fontSize:'.65rem', fontWeight:600, cursor:'pointer' },
     // NEW styles for excel filter
     headerCell: { display:'flex', alignItems:'center', justifyContent:'space-between', gap:'.4rem' },
-    filterTrigger: { background:'#fff', border:'1px solid var(--brand-border)', borderRadius:'3px', padding:'0 .25rem', fontSize:'.55rem', cursor:'pointer', lineHeight:1.4, color:'var(--brand-text-soft)' },
+    filterTrigger: { background:'var(--input-bg)', border:'1px solid var(--brand-border)', borderRadius:'3px', padding:'0 .25rem', fontSize:'.55rem', cursor:'pointer', lineHeight:1.4, color:'var(--brand-text-soft)' },
     filterTriggerActive: { background:'var(--brand-green)', color:'#fff', borderColor:'var(--brand-green)' },
-    filterDropdown: { position:'absolute', top:'100%', marginTop:'.25rem', right:0, zIndex:50, background:'#fff', border:'1px solid var(--brand-border)', borderRadius:'4px', minWidth:'190px', boxShadow:'0 4px 12px rgba(0,0,0,0.12)', padding:'.5rem', display:'flex', flexDirection:'column', gap:'.5rem' },
+    filterDropdown: { position:'absolute', top:'100%', marginTop:'.25rem', right:0, zIndex:50, background:'var(--modal-bg)', border:'1px solid var(--brand-border)', borderRadius:'4px', minWidth:'190px', boxShadow:'0 4px 12px rgba(0,0,0,0.12)', padding:'.5rem', display:'flex', flexDirection:'column', gap:'.5rem' },
     filterSearchWrap: { },
     filterSearch: { width:'100%', padding:'.35rem .45rem', fontSize:'.6rem', border:'1px solid var(--brand-border)', borderRadius:'3px' },
-    filterValues: { maxHeight:'180px', overflowY:'auto', border:'1px solid var(--brand-border)', borderRadius:'3px', padding:'.35rem', display:'flex', flexDirection:'column', gap:'.25rem', background:'#fafafa' },
+    filterValues: { maxHeight:'180px', overflowY:'auto', border:'1px solid var(--brand-border)', borderRadius:'3px', padding:'.35rem', display:'flex', flexDirection:'column', gap:'.25rem', background:'var(--brand-surface)' },
     filterValueRow: { display:'flex', gap:'.4rem', alignItems:'center', fontSize:'.6rem', cursor:'pointer' },
     filterValueText: { },
     noValues: { fontSize:'.55rem', color:'var(--brand-text-soft)', textAlign:'center', padding:'.35rem 0' },
     filterActionsBar: { display:'flex', justifyContent:'flex-end', gap:'.4rem' },
     smallBtn: { background:'var(--brand-green)', color:'#fff', border:'1px solid var(--brand-green)', borderRadius:'3px', padding:'.35rem .55rem', fontSize:'.55rem', cursor:'pointer', fontWeight:600 },
-    smallBtnSecondary: { background:'#6c757d', color:'#fff', border:'1px solid #6c757d', borderRadius:'3px', padding:'.35rem .55rem', fontSize:'.55rem', cursor:'pointer', fontWeight:600 },
+    smallBtnSecondary: { background:'var(--brand-text-soft)', color:'var(--brand-surface)', border:'1px solid var(--brand-border)', borderRadius:'3px', padding:'.35rem .55rem', fontSize:'.55rem', cursor:'pointer', fontWeight:600 },
     sectionTitle: { fontSize:'.85rem', fontWeight:600, margin:'1rem 0 .5rem', color:'var(--brand-text)' },
-  errorText: { color:'#d83545', background:'#fdecee', border:'1px solid #f7c2c7', padding:'.5rem .65rem', borderRadius:'6px', fontSize:'.72rem' },
+  errorText: { color:'var(--color-error)', background:'var(--color-error-bg)', border:'1px solid var(--color-error-border)', padding:'.5rem .65rem', borderRadius:'6px', fontSize:'.72rem' },
   // Chips and multi-select styles
   chipsWrap: { display:'flex', gap:'.3rem', flexWrap:'wrap' },
   chip: { background:'var(--brand-surface-alt)', border:'1px solid var(--brand-border)', borderRadius:'999px', padding:'.15rem .5rem', fontSize:'.65rem', color:'var(--brand-text)' },
-  chipMuted: { background:'#e9f7ef', border:'1px solid #cdeed8', borderRadius:'999px', padding:'.15rem .5rem', fontSize:'.65rem', color:'#128d3b' },
+  chipMuted: { background:'var(--brand-surface-alt)', border:'1px solid var(--brand-border)', borderRadius:'999px', padding:'.15rem .5rem', fontSize:'.65rem', color:'var(--brand-green)' },
   multiSelectContainer: { position:'relative' },
-  multiSelectDisplay: { display:'flex', alignItems:'center', justifyContent:'space-between', gap:'.5rem', minHeight:'38px', padding:'.45rem .6rem', border:'1px solid var(--brand-border)', borderRadius:'var(--radius-md)', cursor:'pointer', background:'#fff' },
+  multiSelectDisplay: { display:'flex', alignItems:'center', justifyContent:'space-between', gap:'.5rem', minHeight:'38px', padding:'.45rem .6rem', border:'1px solid var(--brand-border)', borderRadius:'var(--radius-md)', cursor:'pointer', background:'var(--input-bg)' },
   caret: { fontSize:'.6rem', color:'var(--brand-text-soft)' },
-  multiSelectDropdown: { position:'absolute', top:'100%', left:0, right:0, zIndex:60, background:'#fff', border:'1px solid var(--brand-border)', borderRadius:'6px', boxShadow:'0 8px 20px rgba(0,0,0,0.12)', padding:'.5rem', marginTop:'.35rem' },
+  multiSelectDropdown: { position:'absolute', top:'100%', left:0, right:0, zIndex:60, background:'var(--modal-bg)', border:'1px solid var(--brand-border)', borderRadius:'6px', boxShadow:'0 8px 20px rgba(0,0,0,0.12)', padding:'.5rem', marginTop:'.35rem' },
   // Search bar styles
   searchContainer: { marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '.5rem' },
-  searchInput: { 
-    flex: 1, 
-    padding: '.75rem 1rem', 
-    border: '2px solid var(--brand-border)', 
-    borderRadius: 'var(--radius-md)', 
-    fontSize: '.875rem', 
-    background: '#fff', 
+  searchInput: {
+    flex: 1,
+    padding: '.75rem 1rem',
+    border: '2px solid var(--brand-border)',
+    borderRadius: 'var(--radius-md)',
+    fontSize: '.875rem',
+    background: 'var(--input-bg)',
     color: 'var(--brand-text)',
     transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
     outline: 'none'

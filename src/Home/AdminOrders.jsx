@@ -192,9 +192,11 @@ const AdminOrders = () => {
             style={{
               flex: '1 1 300px',
               padding: '.5rem',
-              border: '1px solid #ccc',
+              border: '1px solid var(--input-border)',
               borderRadius: '4px',
-              fontSize: '.9rem'
+              fontSize: '.9rem',
+              background: 'var(--input-bg)',
+              color: 'var(--brand-text)',
             }}
           />
           
@@ -203,10 +205,12 @@ const AdminOrders = () => {
             onChange={(e) => setSortBy(e.target.value)}
             style={{
               padding: '.5rem',
-              border: '1px solid #ccc',
+              border: '1px solid var(--input-border)',
               borderRadius: '4px',
               fontSize: '.9rem',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              background: 'var(--input-bg)',
+              color: 'var(--brand-text)',
             }}
           >
             <option value="date">Sort by Date</option>
@@ -218,9 +222,10 @@ const AdminOrders = () => {
             onClick={() => setSortAsc(!sortAsc)}
             style={{
               padding: '.5rem 1rem',
-              border: '1px solid #ccc',
+              border: '1px solid var(--input-border)',
               borderRadius: '4px',
-              background: 'white',
+              background: 'var(--input-bg)',
+              color: 'var(--brand-text)',
               cursor: 'pointer',
               fontSize: '.9rem'
             }}
@@ -233,10 +238,10 @@ const AdminOrders = () => {
               onClick={clearAllFilters}
               style={{
                 padding: '.5rem 1rem',
-                border: '1px solid #dc3545',
+                border: '1px solid var(--color-error)',
                 borderRadius: '4px',
-                background: 'white',
-                color: '#dc3545',
+                background: 'var(--color-error-bg)',
+                color: 'var(--color-error)',
                 cursor: 'pointer',
                 fontSize: '.9rem'
               }}
@@ -259,9 +264,10 @@ const AdminOrders = () => {
                   onClick={() => setOpenFilter(openFilter === field ? null : field)}
                   style={{
                     padding: '.4rem .8rem',
-                    border: selected.length > 0 ? '2px solid var(--brand-green)' : '1px solid #ccc',
+                    border: selected.length > 0 ? '2px solid var(--brand-green)' : '1px solid var(--input-border)',
                     borderRadius: '4px',
-                    background: 'white',
+                    background: selected.length > 0 ? 'var(--brand-surface-alt)' : 'var(--input-bg)',
+                    color: 'var(--brand-text)',
                     cursor: 'pointer',
                     fontSize: '.85rem',
                     fontWeight: selected.length > 0 ? 'bold' : 'normal'
@@ -277,8 +283,8 @@ const AdminOrders = () => {
                       top: '100%',
                       left: 0,
                       marginTop: '.25rem',
-                      background: 'white',
-                      border: '1px solid #ccc',
+                      background: 'var(--modal-bg)',
+                      border: '1px solid var(--brand-border)',
                       borderRadius: '4px',
                       boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                       zIndex: 1000,
@@ -296,10 +302,11 @@ const AdminOrders = () => {
                           padding: '.5rem',
                           cursor: 'pointer',
                           fontSize: '.85rem',
-                          borderBottom: '1px solid #f0f0f0'
+                          borderBottom: '1px solid var(--brand-border)',
+                          color: 'var(--brand-text)',
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#f5f5f5'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--brand-surface-alt)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                       >
                         <input
                           type="checkbox"
@@ -465,7 +472,7 @@ const AdminOrders = () => {
                                         ₹{formatINR(discounted)}
                                       </strong>
                                       {p.discount_pct > 0 && (
-                                        <span style={{ color: '#f59e0b', marginLeft: '4px' }}>
+                                        <span style={{ color: 'var(--color-warning-text)', marginLeft: '4px' }}>
                                           ({formatPercent(p.discount_pct, { decimals: 1 })}% off)
                                         </span>
                                       )}
@@ -510,7 +517,7 @@ const AdminOrders = () => {
                 gap: '.5rem',
                 marginTop: '1.5rem',
                 paddingTop: '1rem',
-                borderTop: '1px solid #e0e0e0'
+                borderTop: '1px solid var(--brand-border)'
               }}>
                 <button
                   onClick={() => handlePageChange(currentPage - 1)}
@@ -519,7 +526,7 @@ const AdminOrders = () => {
                     padding: '.5rem 1rem',
                     border: '1px solid #ccc',
                     borderRadius: '4px',
-                    background: currentPage === 1 ? '#f5f5f5' : 'white',
+                    background: currentPage === 1 ? 'var(--brand-surface-alt)' : 'var(--input-bg)',
                     cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
                     fontSize: '.9rem'
                   }}
@@ -545,9 +552,10 @@ const AdminOrders = () => {
                           onClick={() => handlePageChange(1)}
                           style={{
                             padding: '.5rem .75rem',
-                            border: '1px solid #ccc',
+                            border: '1px solid var(--input-border)',
                             borderRadius: '4px',
-                            background: 'white',
+                            background: 'var(--input-bg)',
+                            color: 'var(--brand-text)',
                             cursor: 'pointer',
                             fontSize: '.9rem'
                           }}
@@ -567,10 +575,10 @@ const AdminOrders = () => {
                           onClick={() => handlePageChange(i)}
                           style={{
                             padding: '.5rem .75rem',
-                            border: i === currentPage ? '2px solid var(--brand-green)' : '1px solid #ccc',
+                            border: i === currentPage ? '2px solid var(--brand-green)' : '1px solid var(--input-border)',
                             borderRadius: '4px',
-                            background: i === currentPage ? 'var(--brand-green)' : 'white',
-                            color: i === currentPage ? 'white' : 'black',
+                            background: i === currentPage ? 'var(--brand-green)' : 'var(--input-bg)',
+                            color: i === currentPage ? '#fff' : 'var(--brand-text)',
                             cursor: 'pointer',
                             fontSize: '.9rem',
                             fontWeight: i === currentPage ? 'bold' : 'normal'
@@ -591,9 +599,10 @@ const AdminOrders = () => {
                           onClick={() => handlePageChange(totalPages)}
                           style={{
                             padding: '.5rem .75rem',
-                            border: '1px solid #ccc',
+                            border: '1px solid var(--input-border)',
                             borderRadius: '4px',
-                            background: 'white',
+                            background: 'var(--input-bg)',
+                            color: 'var(--brand-text)',
                             cursor: 'pointer',
                             fontSize: '.9rem'
                           }}
@@ -612,9 +621,10 @@ const AdminOrders = () => {
                   disabled={currentPage === totalPages}
                   style={{
                     padding: '.5rem 1rem',
-                    border: '1px solid #ccc',
+                    border: '1px solid var(--input-border)',
                     borderRadius: '4px',
-                    background: currentPage === totalPages ? '#f5f5f5' : 'white',
+                    background: currentPage === totalPages ? 'var(--brand-surface-alt)' : 'var(--input-bg)',
+                    color: 'var(--brand-text)',
                     cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
                     fontSize: '.9rem'
                   }}

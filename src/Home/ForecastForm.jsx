@@ -259,7 +259,7 @@ const ForecastForm = () => {
               border: '1px solid var(--brand-border)', 
               borderRadius: '8px', 
               padding: '1.5rem',
-              backgroundColor: 'white'
+              backgroundColor: 'var(--brand-surface)'
             }}>
               <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.2rem' }}>
                 Forecast for {months[selectedMonth - 1]} {selectedYear}

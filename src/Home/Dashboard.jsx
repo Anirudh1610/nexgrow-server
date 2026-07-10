@@ -11,7 +11,7 @@ const Dashboard = () => {
 			<AppHeader />
 			<main className="page fade-in">
 				<div className="mobile-stack" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem'}}>
-                    <h1 className="section-title mobile-center" style={{margin: 0, fontSize: 'clamp(1.3rem, 4vw, 1.5rem)', color: '#999'}}>Dashboard</h1>
+                    <h1 className="section-title mobile-center" style={{margin: 0, fontSize: 'clamp(1.3rem, 4vw, 1.5rem)', color: 'var(--color-dim-text)'}}>Dashboard</h1>
                     <button className="btn secondary mobile-full-width" onClick={() => navigate('/home')}>Back to Home</button>
                 </div>
 
@@ -22,13 +22,12 @@ const Dashboard = () => {
 					alignItems: 'center',
 					justifyContent: 'center',
 					minHeight: '60vh',
-					background: '#f8f9fa',
+					background: 'var(--brand-surface)',
 					borderRadius: '12px',
-					border: '2px dashed #ddd',
+					border: '2px dashed var(--brand-border)',
 					textAlign: 'center',
 					padding: '3rem',
-					filter: 'grayscale(0.3)',
-					opacity: 0.7
+					opacity: 0.8,
 				}}>
 					<div style={{
 						fontSize: '4rem',
@@ -39,7 +38,7 @@ const Dashboard = () => {
 					</div>
 					<h2 style={{
 						fontSize: 'clamp(1.5rem, 4vw, 2rem)',
-						color: '#999',
+						color: 'var(--color-dim-text)',
 						marginBottom: '1rem',
 						fontWeight: 600
 					}}>
@@ -47,12 +46,12 @@ const Dashboard = () => {
 					</h2>
 					<p style={{
 						fontSize: '1.1rem',
-						color: '#666',
+						color: 'var(--brand-text-soft)',
 						maxWidth: '500px',
 						lineHeight: 1.6,
 						marginBottom: '2rem'
 					}}>
-						We're working on building comprehensive analytics and insights for your business. 
+						We're working on building comprehensive analytics and insights for your business.
 						Stay tuned for detailed reports, charts, and key performance indicators.
 					</p>
 					<div style={{
@@ -62,34 +61,34 @@ const Dashboard = () => {
 						justifyContent: 'center'
 					}}>
 						<div style={{
-							background: '#f0f0f0',
+							background: 'var(--color-chip-bg)',
 							padding: '0.75rem 1.5rem',
 							borderRadius: '8px',
-							color: '#888',
+							color: 'var(--color-chip-text)',
 							fontSize: '0.9rem',
 							fontWeight: 500
 						}}>
-							📈 Sales Analytics
+							Sales Analytics
 						</div>
 						<div style={{
-							background: '#f0f0f0',
+							background: 'var(--color-chip-bg)',
 							padding: '0.75rem 1.5rem',
 							borderRadius: '8px',
-							color: '#888',
+							color: 'var(--color-chip-text)',
 							fontSize: '0.9rem',
 							fontWeight: 500
 						}}>
-							📋 Performance Reports
+							Performance Reports
 						</div>
 						<div style={{
-							background: '#f0f0f0',
+							background: 'var(--color-chip-bg)',
 							padding: '0.75rem 1.5rem',
 							borderRadius: '8px',
-							color: '#888',
+							color: 'var(--color-chip-text)',
 							fontSize: '0.9rem',
 							fontWeight: 500
 						}}>
-							🎯 Key Metrics
+							Key Metrics
 						</div>
 					</div>
 				</div>

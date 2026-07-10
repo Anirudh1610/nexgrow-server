@@ -3,6 +3,7 @@ import { getAuth, updatePassword, signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { SERVER_API_URL } from './APIConfig';
+import logo from '../assets/Logo.png';
 
 export default function ChangePasswordPage() {
   const [newPassword, setNewPassword] = useState('');
@@ -79,10 +80,10 @@ export default function ChangePasswordPage() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: '#f5f6fa',
+      background: 'var(--brand-bg)',
     }}>
       <div style={{
-        background: '#fff',
+        background: 'var(--brand-surface)',
         padding: '2.5rem',
         borderRadius: '16px',
         boxShadow: '0 4px 24px rgba(0,0,0,0.10)',
@@ -93,16 +94,11 @@ export default function ChangePasswordPage() {
 
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
-          <div style={{
-            width: 72, height: 72, borderRadius: '50%',
-            background: '#e8f5e9',
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            marginBottom: '0.75rem', fontSize: '2rem',
-          }}>🔒</div>
-          <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: '#1b1b1b' }}>
+          <img src={logo} alt="NexGrow" style={{ width: 140, height: 'auto', objectFit: 'contain', marginBottom: '1rem' }} />
+          <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'var(--brand-text)' }}>
             Set Your Password
           </h2>
-          <p style={{ margin: '0.5rem 0 0', color: '#6b7280', fontSize: '0.9rem', lineHeight: 1.5 }}>
+          <p style={{ margin: '0.5rem 0 0', color: 'var(--brand-text-soft)', fontSize: '0.9rem', lineHeight: 1.5 }}>
             Welcome! For security, please set a personal password before continuing.
           </p>
         </div>
@@ -111,7 +107,7 @@ export default function ChangePasswordPage() {
 
           {/* New Password */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: '0.3rem' }}>
+            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--brand-text)', marginBottom: '0.3rem' }}>
               New Password
             </label>
             <div style={{ position: 'relative' }}>
@@ -123,20 +119,21 @@ export default function ChangePasswordPage() {
                 autoComplete="new-password"
                 style={{
                   width: '100%', padding: '0.7rem 2.5rem 0.7rem 0.9rem',
-                  border: '1px solid #d1d5db', borderRadius: '8px',
+                  border: '1px solid var(--input-border)', borderRadius: '8px',
                   fontSize: '0.95rem', boxSizing: 'border-box', outline: 'none',
+                  background: 'var(--input-bg)', color: 'var(--brand-text)',
                 }}
               />
               <button type="button" onClick={() => setShowNew(v => !v)}
-                style={{ position: 'absolute', right: '0.7rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem' }}>
-                {showNew ? '🙈' : '👁️'}
+                style={{ position: 'absolute', right: '0.7rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', color: 'var(--brand-text-soft)' }}>
+                {showNew ? 'Hide' : 'Show'}
               </button>
             </div>
           </div>
 
           {/* Confirm Password */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: '0.3rem' }}>
+            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--brand-text)', marginBottom: '0.3rem' }}>
               Confirm New Password
             </label>
             <div style={{ position: 'relative' }}>
@@ -148,31 +145,32 @@ export default function ChangePasswordPage() {
                 autoComplete="new-password"
                 style={{
                   width: '100%', padding: '0.7rem 2.5rem 0.7rem 0.9rem',
-                  border: '1px solid #d1d5db', borderRadius: '8px',
+                  border: '1px solid var(--input-border)', borderRadius: '8px',
                   fontSize: '0.95rem', boxSizing: 'border-box', outline: 'none',
+                  background: 'var(--input-bg)', color: 'var(--brand-text)',
                 }}
               />
               <button type="button" onClick={() => setShowConfirm(v => !v)}
-                style={{ position: 'absolute', right: '0.7rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem' }}>
-                {showConfirm ? '🙈' : '👁️'}
+                style={{ position: 'absolute', right: '0.7rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', color: 'var(--brand-text-soft)' }}>
+                {showConfirm ? 'Hide' : 'Show'}
               </button>
             </div>
           </div>
 
           {/* Hints */}
           <div style={{
-            background: '#f0faf3', borderRadius: '8px', padding: '0.85rem 1rem',
-            borderLeft: '3px solid #16a34a',
+            background: 'var(--brand-surface-alt)', borderRadius: '8px', padding: '0.85rem 1rem',
+            borderLeft: '3px solid var(--brand-green)',
           }}>
-            <p style={{ margin: '0 0 0.4rem', fontSize: '0.8rem', fontWeight: 600, color: '#16a34a' }}>
+            <p style={{ margin: '0 0 0.4rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--brand-green)' }}>
               Password requirements:
             </p>
-            <p style={{ margin: '0 0 0.2rem', fontSize: '0.8rem', color: '#374151' }}>• At least 8 characters</p>
-            <p style={{ margin: 0, fontSize: '0.8rem', color: '#374151' }}>• Cannot be the same as your temporary password</p>
+            <p style={{ margin: '0 0 0.2rem', fontSize: '0.8rem', color: 'var(--brand-text)' }}>• At least 8 characters</p>
+            <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--brand-text)' }}>• Cannot be the same as your temporary password</p>
           </div>
 
           {error && (
-            <p style={{ margin: 0, color: '#dc2626', fontSize: '0.85rem', textAlign: 'center' }}>{error}</p>
+            <p style={{ margin: 0, color: 'var(--color-error)', fontSize: '0.85rem', textAlign: 'center' }}>{error}</p>
           )}
 
           <button
@@ -180,7 +178,7 @@ export default function ChangePasswordPage() {
             disabled={loading}
             style={{
               width: '100%', padding: '0.85rem',
-              background: loading ? '#86efac' : '#16a34a',
+              background: loading ? 'var(--brand-green-light)' : 'var(--brand-green)',
               color: '#fff', border: 'none', borderRadius: '8px',
               fontSize: '1rem', fontWeight: 600,
               cursor: loading ? 'not-allowed' : 'pointer',
@@ -195,8 +193,8 @@ export default function ChangePasswordPage() {
             onClick={handleLogout}
             style={{
               width: '100%', padding: '0.75rem',
-              background: 'none', color: '#6b7280',
-              border: '1px solid #d1d5db', borderRadius: '8px',
+              background: 'none', color: 'var(--brand-text-soft)',
+              border: '1px solid var(--input-border)', borderRadius: '8px',
               fontSize: '0.95rem', fontWeight: 500,
               cursor: 'pointer', marginTop: '0.6rem',
             }}

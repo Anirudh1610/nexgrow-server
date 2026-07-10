@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../Auth/AuthConfig';
 import '../components/UITheme.css';
+import logo from '../assets/Logo.png';
 
 const AppHeader = ({
   centerContent = null,
@@ -21,7 +22,7 @@ const AppHeader = ({
         <button
           className="btn"
           onClick={() => navigate('/home')}
-          style={{ 
+          style={{
             marginRight: '1rem',
             padding: '.5rem 1rem',
             fontSize: '.75rem',
@@ -59,7 +60,7 @@ const AppHeader = ({
         if (typeof onLogoClick === 'string') navigate(onLogoClick);
         else if (typeof onLogoClick === 'function') onLogoClick();
       }}>
-        NEXGROW
+        <img src={logo} alt="NexGrow" style={{ height: 40, width: 'auto', objectFit: 'contain', display: 'block' }} />
       </div>
       {centerContent && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './Auth/AuthConfig';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Landing from './Landing/Landing';
@@ -21,11 +21,10 @@ import SalesManager from './Home/SalesManager';
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [deactivatedError, setDeactivatedError] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-
       if (currentUser?.uid && currentUser?.email) {
         try {
           const minimal = { uid: currentUser.uid, email: currentUser.email };
@@ -33,18 +32,32 @@ function App() {
         } catch {}
 
         try {
-          // Check must_change_password from backend
+          // Check active status and must_change_password before allowing the user in
           const meResponse = await axios.get(`${SERVER_API_URL}/orders/me`, {
             params: { uid: currentUser.uid, email: currentUser.email },
           });
+          if (meResponse.data.active === false) {
+            await signOut(auth);
+            setDeactivatedError(true);
+            setLoading(false);
+            return;
+          }
           if (meResponse.data.must_change_password) {
             if (!window.location.pathname.includes('/change-password')) {
+              setUser(currentUser);
+              setLoading(false);
               window.location.replace('/change-password');
               return;
             }
           }
         } catch (e) {
-          console.warn('Failed to check must_change_password:', e?.message);
+          if (e?.response?.status === 403) {
+            await signOut(auth);
+            setDeactivatedError(true);
+            setLoading(false);
+            return;
+          }
+          console.warn('Failed to check user status:', e?.message);
         }
 
         // Auto-link Firebase UID (idempotent)
@@ -65,7 +78,10 @@ function App() {
         } catch (e) {
           console.warn('Auto-link UID failed:', e?.message);
         }
+
+        setUser(currentUser);
       } else {
+        setUser(null);
         try { localStorage.removeItem('nexgrow_user'); } catch {}
       }
 
@@ -152,48 +168,32 @@ function App() {
           textAlign: 'center',
           padding: '20px'
         }}>
-          <h2 style={{ color: '#E74C3C', marginBottom: '20px' }}>🔒 Access Denied</h2>
+          <h2 style={{ color: 'var(--color-error)', marginBottom: '20px' }}>Access Denied</h2>
           <p style={{ marginBottom: '30px', fontSize: '1.1rem' }}>
             This admin area is restricted to Directors and Admins only.
           </p>
-          
+
           {isSalesManager && (
-            <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#E8F6F3', borderRadius: '5px', color: '#1E8449' }}>
-              <p style={{ margin: '0 0 10px 0', fontWeight: 'bold' }}>💡 Sales Manager Access</p>
+            <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: 'var(--brand-surface-alt)', borderRadius: '5px', color: 'var(--brand-green-dark)', border: '1px solid var(--brand-border)' }}>
+              <p style={{ margin: '0 0 10px 0', fontWeight: 'bold' }}>Sales Manager Access</p>
               <p style={{ margin: 0, fontSize: '0.9rem' }}>
                 As a Sales Manager, use your dedicated manager dashboard to view and manage team orders.
               </p>
             </div>
           )}
-          
+
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
             {isSalesManager && (
-              <button 
+              <button
                 onClick={() => window.location.href = '/manager'}
-                style={{
-                  padding: '12px 24px',
-                  backgroundColor: '#2E86C1',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '5px',
-                  fontSize: '1rem',
-                  cursor: 'pointer'
-                }}
+                className="btn"
               >
-                📊 Manager Dashboard
+                Manager Dashboard
               </button>
             )}
-            <button 
+            <button
               onClick={() => window.location.href = '/home'}
-              style={{
-                padding: '12px 24px',
-                backgroundColor: '#2C3E50',
-                color: '#FFFFFF',
-                border: 'none',
-                borderRadius: '5px',
-                fontSize: '1rem',
-                cursor: 'pointer'
-              }}
+              className="btn secondary"
             >
               Go to Home
             </button>
@@ -205,13 +205,35 @@ function App() {
     return children;
   };
 
+  if (deactivatedError) {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center',
+        minHeight: '100vh', backgroundColor: 'var(--brand-bg)', color: 'var(--brand-text)',
+        textAlign: 'center', padding: '2rem', fontFamily: "'Inter', sans-serif"
+      }}>
+        <h2 style={{ color: 'var(--color-error)', marginBottom: '1rem' }}>Account Deactivated</h2>
+        <p style={{ maxWidth: 400, color: 'var(--brand-text-soft)' }}>
+          Your account has been deactivated. Please contact your administrator.
+        </p>
+        <button
+          className="btn secondary"
+          style={{ marginTop: '1.5rem' }}
+          onClick={() => { setDeactivatedError(false); window.location.replace('/login'); }}
+        >
+          Back to Login
+        </button>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        minHeight: '100vh', 
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
         backgroundColor: 'var(--brand-bg)',
         color: 'var(--brand-text)',
         fontSize: '1.2rem',
