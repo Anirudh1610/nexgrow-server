@@ -66,7 +66,7 @@ const HomePage = () => {
         {role === 'director' && (
           <div className="tiles">
             <div className="tile" onClick={() => navigate('/admin/discount-approvals')}>
-              <h3>Discount Approvals</h3>
+              <h3>Approvals</h3>
               <p>Review, approve or reject requested order discounts.</p>
             </div>
             <div className="tile" onClick={() => navigate('/admin/orders')}>
@@ -98,6 +98,10 @@ const HomePage = () => {
               <h3>My Orders</h3>
               <p>Track submitted orders and discount statuses.</p>
             </div>
+            <div className="tile" onClick={() => navigate('/my-sales')}>
+              <h3>My Sales</h3>
+              <p>See your sales trend and product breakdown.</p>
+            </div>
             <div className="tile" onClick={() => navigate('/forecast')}>
               <h3>Sales Forecast</h3>
               <p>Set your sales targets for upcoming months.</p>
@@ -122,6 +126,10 @@ const HomePage = () => {
             <div className="tile" onClick={() => navigate('/orders')}>
               <h3>My Orders</h3>
               <p>Quick link to your personal orders list.</p>
+            </div>
+            <div className="tile" onClick={() => navigate('/my-sales')}>
+              <h3>Team Sales</h3>
+              <p>See your team's sales trend and product breakdown.</p>
             </div>
             <div className="tile" onClick={() => navigate('/forecast')}>
               <h3>Sales Forecast</h3>

@@ -125,7 +125,7 @@ const AdminDiscountApprovals = () => {
       <main className="page fade-in">
         <div className="surface-card elevated">
           <div className="mobile-stack" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem'}}>
-            <h1 className="section-title mobile-center" style={{margin: 0, fontSize: 'clamp(1.2rem, 4vw, 1.5rem)'}}>Pending Discount Approvals</h1>
+            <h1 className="section-title mobile-center" style={{margin: 0, fontSize: 'clamp(1.2rem, 4vw, 1.5rem)'}}>Pending Approvals</h1>
             <button className="btn secondary mobile-full-width" onClick={() => navigate('/home')}>Back to Home</button>
           </div>
           {loading ? <p>Loading approvals...</p> : orders.length===0 ? <p>No pending discount approvals.</p> : (

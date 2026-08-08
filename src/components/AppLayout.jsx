@@ -146,12 +146,15 @@ const AppLayout = ({ children }) => {
       { path: '/home', label: 'Home' },
       { path: '/order-form', label: 'New Order' },
       { path: '/orders', label: 'My Orders' },
-      { path: '/dashboard', label: 'Dashboard' },
     ];
 
     // Add role-specific items
     if (userRole?.role === 'sales_manager') {
       baseItems.push({ path: '/manager', label: 'Team Management' });
+    }
+
+    if (userRole?.role === 'salesman' || userRole?.role === 'sales_manager') {
+      baseItems.push({ path: '/my-sales', label: 'My Sales' });
     }
 
     if (userRole?.role === 'director' || userRole?.role === 'salesman') {
@@ -165,7 +168,8 @@ const AppLayout = ({ children }) => {
         { path: '/admin/orders', label: 'Admin Orders' },
         { path: '/admin/discount-approvals', label: 'Approvals' },
         { path: '/admin/management', label: 'Data Management' },
-        { path: '/admin/forecasts', label: 'All Forecasts' }
+        { path: '/admin/forecasts', label: 'All Forecasts' },
+        { path: '/dashboard', label: 'Dashboard' }
       );
     }
 

@@ -7,6 +7,13 @@ import { useNavigate } from 'react-router-dom';
 import { formatINR, formatPercent, calculateGST, calculateTotalWithGST } from './numberFormat';
 import AppHeader from '../components/AppHeader';
 
+// Bag/kg-type products (Granules, Powders) are ordered by tonnage; parse the bag
+// weight (e.g. "50 KG bag" -> 50) so tonnes entered can be converted to a bag count.
+const parseBagWeightKg = (text) => {
+  const match = String(text || '').match(/([\d.]+)\s*kg/i);
+  return match ? parseFloat(match[1]) : null;
+};
+
 const OrderForm = ({ onSignOut }) => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -20,7 +27,7 @@ const OrderForm = ({ onSignOut }) => {
 
   // Multiple products state
   const [productEntries, setProductEntries] = useState([
-    { product: '', packingSizes: [], productSize: '', quantity: '', priceDetails: null, loadingPackingSizes: false, discount: 0 }
+    { product: '', packingSizes: [], productSize: '', quantity: '', tonnes: '', priceDetails: null, loadingPackingSizes: false, discount: 0 }
   ]);
 
   const [formData, setFormData] = useState({
@@ -154,6 +161,13 @@ const OrderForm = ({ onSignOut }) => {
       setProductEntries(prev => {
         const updated = [...prev];
         updated[entryIdx].packingSizes = packingData;
+        // Bag/kg-type products are ordered by tonnage, not by picking a packing size -
+        // auto-select the (only) packing size so the bag weight is still known internally.
+        const category = (selectedProduct.category || '').toLowerCase();
+        const isBagType = /granule|powder/.test(category);
+        if (isBagType && packingData.length > 0) {
+          updated[entryIdx].productSize = packingData[0]._id || packingData[0].id;
+        }
         updated[entryIdx].loadingPackingSizes = false;
         return updated;
       });
@@ -221,6 +235,8 @@ const OrderForm = ({ onSignOut }) => {
       if (field === 'product') {
         updated[idx].productSize = '';
         updated[idx].packingSizes = [];
+        updated[idx].quantity = '';
+        updated[idx].tonnes = '';
         updated[idx].priceDetails = null;
         fetchPackingSizes(value, idx);
       }
@@ -233,11 +249,28 @@ const OrderForm = ({ onSignOut }) => {
     });
   };
 
+  // Bag/kg-type products enter tonnes; convert to a bag count (the actual order quantity) here.
+  const handleTonnesEntryChange = (idx, value) => {
+    setProductEntries(prev => {
+      const updated = [...prev];
+      updated[idx].tonnes = value;
+      const entry = updated[idx];
+      const selPacking = entry.packingSizes.find(p => (p._id || p.id) === entry.productSize);
+      const bagWeightKg = selPacking ? parseBagWeightKg(selPacking.packing_size || selPacking.size || selPacking.name || '') : null;
+      const tonnes = Number(value);
+      const bags = (bagWeightKg && value && !isNaN(tonnes) && tonnes > 0) ? Math.round((tonnes * 1000) / bagWeightKg) : '';
+      updated[idx].quantity = bags;
+      updated[idx].priceDetails = null;
+      fetchPrice(entry.productSize, bags, idx);
+      return updated;
+    });
+  };
+
   // Add new product entry
   const handleAddProductEntry = () => {
     setProductEntries(prev => [
       ...prev,
-      { product: '', packingSizes: [], productSize: '', quantity: '', priceDetails: null, loadingPackingSizes: false, discount: 0 }
+      { product: '', packingSizes: [], productSize: '', quantity: '', tonnes: '', priceDetails: null, loadingPackingSizes: false, discount: 0 }
     ]);
   };
 
@@ -365,7 +398,7 @@ const OrderForm = ({ onSignOut }) => {
         discountStatus: anyDiscount ? 'pending' : 'approved'
       });
       // Reset form basics
-      setProductEntries([{ product: '', packingSizes: [], productSize: '', quantity: '', priceDetails: null, loadingPackingSizes: false, discount: 0 }]);
+      setProductEntries([{ product: '', packingSizes: [], productSize: '', quantity: '', tonnes: '', priceDetails: null, loadingPackingSizes: false, discount: 0 }]);
       setFormData(prev => ({ ...prev, dealer: '' }));
     } catch (error) {
       alert('Failed to submit the order. Please try again.');
@@ -567,6 +600,10 @@ const OrderForm = ({ onSignOut }) => {
                   const lineDiscountAmt = base * pct / 100;
                   const after = base - lineDiscountAmt;
                   const selectedProduct = (products || []).find(p => (p._id || p.id) === entry.product) || {};
+                  const category = (selectedProduct.category || '').toLowerCase();
+                  const isBagType = /granule|powder/.test(category);
+                  const isLiquid = /liquid/.test(category);
+                  const selPacking = entry.packingSizes.find(p => (p._id || p.id) === entry.productSize);
                   return (
                   <div key={idx} className="surface-card" style={{padding:'1.25rem', boxShadow:'var(--brand-shadow-md)', border: '1px solid var(--brand-border)'}}>
                     <div className="form-grid four-col">
@@ -577,31 +614,52 @@ const OrderForm = ({ onSignOut }) => {
                           {products.map(p=>(<option key={p._id || p.id} value={p._id || p.id}>{p.name}</option>))}
                         </select>
                       </div>
+                      {!isBagType && (
+                        <div className="form-row">
+                          <label htmlFor={`productSize-${idx}`}>{isLiquid ? 'Size (in one case)' : 'Size'}</label>
+                          <select id={`productSize-${idx}`} value={entry.productSize} onChange={e=>handleProductEntryChange(idx,'productSize',e.target.value)} className="input" required disabled={!entry.product || entry.loadingPackingSizes}>
+                            <option value="">{!entry.product ? 'Select product' : entry.loadingPackingSizes ? 'Loading...' : 'Choose size'}</option>
+                            {entry.packingSizes.map(p=> {
+                              const packingText = (p.packing_size || p.size || p.name || '').toString();
+                              const cat = (selectedProduct.category || '').toString();
+                              const isPowderLike = /granule|powder|bag|kg|sachet|pack/i.test(`${cat} ${packingText}`);
+                              const itemUnitLabel = isPowderLike ? 'packs' : 'bottles';
+                              const vol = (p.bottle_volume ?? '').toString();
+                              const showVol = vol && vol.toLowerCase() !== 'unit';
+                              return (
+                                <option key={p._id || p.id} value={p._id || p.id}>
+                                  {packingText}
+                                  {p.bottles_per_case ? ` - ${p.bottles_per_case} ${itemUnitLabel}` : ''}
+                                  {showVol ? ` x ${vol}` : ''}
+                                  {p.moq ? ` | MOQ: ${p.moq}` : ''}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </div>
+                      )}
                       <div className="form-row">
-                        <label htmlFor={`productSize-${idx}`}>Size</label>
-                        <select id={`productSize-${idx}`} value={entry.productSize} onChange={e=>handleProductEntryChange(idx,'productSize',e.target.value)} className="input" required disabled={!entry.product || entry.loadingPackingSizes}>
-                          <option value="">{!entry.product ? 'Select product' : entry.loadingPackingSizes ? 'Loading...' : 'Choose size'}</option>
-                          {entry.packingSizes.map(p=> {
-                            const packingText = (p.packing_size || p.size || p.name || '').toString();
-                            const cat = (selectedProduct.category || '').toString();
-                            const isPowderLike = /granule|powder|bag|kg|sachet|pack/i.test(`${cat} ${packingText}`);
-                            const itemUnitLabel = isPowderLike ? 'packs' : 'bottles';
-                            const vol = (p.bottle_volume ?? '').toString();
-                            const showVol = vol && vol.toLowerCase() !== 'unit';
-                            return (
-                              <option key={p._id || p.id} value={p._id || p.id}>
-                                {packingText}
-                                {p.bottles_per_case ? ` - ${p.bottles_per_case} ${itemUnitLabel}` : ''}
-                                {showVol ? ` x ${vol}` : ''}
-                                {p.moq ? ` | MOQ: ${p.moq}` : ''}
-                              </option>
-                            );
-                          })}
-                        </select>
-                      </div>
-                      <div className="form-row">
-                        <label htmlFor={`quantity-${idx}`}>Quantity</label>
-                        <input id={`quantity-${idx}`} type="number" min="1" value={entry.quantity || ''} onChange={e=>handleProductEntryChange(idx,'quantity',e.target.value)} className="input" placeholder="Qty" required />
+                        {isBagType ? (
+                          <>
+                            <label htmlFor={`tonnes-${idx}`}>Quantity</label>
+                            <input id={`tonnes-${idx}`} type="number" min="0.1" step="0.1" value={entry.tonnes || ''} onChange={e=>handleTonnesEntryChange(idx,e.target.value)} className="input" placeholder="e.g. 2.5 (tonnes)" required />
+                          </>
+                        ) : isLiquid ? (
+                          <>
+                            <label htmlFor={`quantity-${idx}`}>Quantity (in Cases)</label>
+                            <input id={`quantity-${idx}`} type="number" min="1" value={entry.quantity || ''} onChange={e=>handleProductEntryChange(idx,'quantity',e.target.value)} className="input" placeholder="Qty" required />
+                            {selPacking?.bottles_per_case && entry.quantity && !isNaN(Number(entry.quantity)) && (
+                              <div style={{fontSize:'.75rem', color:'var(--brand-text-soft)', marginTop:'.25rem'}}>
+                                {`= ${selPacking.bottles_per_case * Number(entry.quantity)} bottles total`}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <label htmlFor={`quantity-${idx}`}>Quantity</label>
+                            <input id={`quantity-${idx}`} type="number" min="1" value={entry.quantity || ''} onChange={e=>handleProductEntryChange(idx,'quantity',e.target.value)} className="input" placeholder="Qty" required />
+                          </>
+                        )}
                       </div>
                       <div className="form-row">
                         <label htmlFor={`discount-${idx}`}>Discount %</label>
@@ -610,6 +668,11 @@ const OrderForm = ({ onSignOut }) => {
                     </div>
                     {entry.priceDetails && (
                       <div style={{marginTop:'.75rem',fontSize:'.8rem',fontWeight:600,color:'var(--brand-text)'}}>
+                        {isBagType && (
+                          <div style={{fontSize:'.75rem', fontWeight:400, color:'var(--brand-text-soft)', marginBottom:'.25rem'}}>
+                            {`${entry.tonnes} tonnes ÷ ${selPacking?.packing_size || selPacking?.name || 'bag size'} ≈ ${entry.priceDetails.quantity} bags`}
+                          </div>
+                        )}
                         <div>
                           Line Total: {formatINR(base)}{pct>0 && <span style={{color: 'var(--color-error)'}}> - {pct}% ({formatINR(lineDiscountAmt)})</span>} → <span style={{color:'var(--brand-green-dark)', fontWeight: 700}}>{formatINR(after)}</span>
                         </div>

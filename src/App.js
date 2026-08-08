@@ -17,6 +17,7 @@ import DirectorForecasts from './Home/DirectorForecasts';
 import axios from 'axios';
 import { SERVER_API_URL, API_BASE_URL } from './Auth/APIConfig';
 import SalesManager from './Home/SalesManager';
+import MySales from './Home/MySales';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -260,7 +261,8 @@ function App() {
         <Route path="/home" element={<ProtectedRoute user={user}><HomePage /></ProtectedRoute>} />
         <Route path="/order-form" element={<ProtectedRoute user={user}><OrderForm onSignOut={handleSignOut} /></ProtectedRoute>} />
         <Route path="/orders" element={<ProtectedRoute user={user}><Orders /></ProtectedRoute>} />
-        <Route path="/dashboard" element={<ProtectedRoute user={user}><Dashboard /></ProtectedRoute>} />
+        <Route path="/dashboard" element={<AdminProtectedRoute user={user}><Dashboard /></AdminProtectedRoute>} />
+        <Route path="/my-sales" element={<ProtectedRoute user={user}><MySales /></ProtectedRoute>} />
         <Route path="/manager" element={<ProtectedRoute user={user}><SalesManager /></ProtectedRoute>} />
         <Route path="/forecast" element={<ProtectedRoute user={user}><ForecastForm /></ProtectedRoute>} />
         <Route path="/forecast-view" element={<ProtectedRoute user={user}><ForecastView /></ProtectedRoute>} />
