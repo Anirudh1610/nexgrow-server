@@ -1,15 +1,14 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { SERVER_API_URL } from '../Auth/APIConfig';
-import AppHeader from '../components/AppHeader';
-import { useNavigate } from 'react-router-dom';
 import { formatINR, formatPercent, formatOrderDisplayId, computeDisplaySeqMap, calculateGST } from './numberFormat';
+
+const STATUS_CHIPS = ['', 'approved', 'pending', 'rejected'];
 
 const AdminOrders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
-  
+
   // Filtering and sorting states
   const [sortBy, setSortBy] = useState('date'); // 'date', 'status', 'total'
   const [sortAsc, setSortAsc] = useState(false);
@@ -170,18 +169,35 @@ const AdminOrders = () => {
   }, [searchQuery, sortBy, sortAsc]);
 
   return (
-    <div className="app-shell" style={{ minHeight: '100vh' }}>
-      <AppHeader
-        centerContent={
-          <div className="header-nav" style={{ display:'flex', gap:'.5rem', marginRight:'.5rem' }}>
-          </div>
-        }
-      />
-      <main className="page fade-in">
-        <h1 className="section-title mobile-center" style={{ fontSize: 'clamp(1.3rem, 4vw, 1.5rem)' }}>
-          All Orders
-        </h1>
-        
+    <div>
+        {/* Status quick filter */}
+        <div style={{ marginBottom: '1rem', display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+          {STATUS_CHIPS.map((st) => {
+            const active = (filterSelections.discount_status || []).length === 1 && filterSelections.discount_status[0] === st;
+            const isAll = st === '';
+            const activeAll = isAll && !(filterSelections.discount_status && filterSelections.discount_status.length);
+            const chipActive = isAll ? activeAll : active;
+            return (
+              <button
+                key={st || 'all'}
+                onClick={() => setFilterSelections((prev) => ({ ...prev, discount_status: isAll ? [] : [st] }))}
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: 9,
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  border: '1px solid ' + (chipActive ? 'var(--brand-green)' : 'var(--input-border)'),
+                  background: chipActive ? 'var(--color-success-bg)' : 'var(--input-bg)',
+                  color: chipActive ? 'var(--color-success-text)' : 'var(--brand-text)',
+                }}
+              >
+                {isAll ? 'All' : st.charAt(0).toUpperCase() + st.slice(1)}
+              </button>
+            );
+          })}
+        </div>
+
         {/* Search and Controls */}
         <div style={{ marginBottom: '1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
           <input
@@ -640,16 +656,7 @@ const AdminOrders = () => {
           </>
             );
           })()}
-          <div style={{ marginTop: '1.5rem' }}>
-            <button
-              className="btn secondary"
-              onClick={() => navigate('/home')}
-            >
-              Back
-            </button>
-          </div>
         </div>
-      </main>
     </div>
   );
 };

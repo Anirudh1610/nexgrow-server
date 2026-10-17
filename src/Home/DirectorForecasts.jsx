@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { SERVER_API_URL } from '../Auth/APIConfig';
-import { useNavigate } from 'react-router-dom';
-import AppHeader from '../components/AppHeader';
 
 const DirectorForecasts = () => {
   const [salesmen, setSalesmen] = useState([]);
@@ -11,7 +9,6 @@ const DirectorForecasts = () => {
   const [selectedSalesman, setSelectedSalesman] = useState('');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState('');
-  const navigate = useNavigate();
 
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -77,22 +74,14 @@ const DirectorForecasts = () => {
     return salesman ? salesman.name : '';
   };
 
-  return (
-    <div className="app-shell" style={{ minHeight: '100vh' }}>
-      <AppHeader />
-      <main className="page fade-in">
-        <div className="surface-card elevated">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-            <h1 className="section-title" style={{ margin: 0 }}>Sales Forecasts - Director View</h1>
-            <button className="btn secondary" onClick={() => navigate('/home')}>
-              Back to Home
-            </button>
-          </div>
+  const filterLabelStyle = { display: 'block', fontSize: '11.5px', fontWeight: 700, color: 'var(--brand-text-muted)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '.3px' };
 
+  return (
+    <div className="surface-card elevated">
           <div className="form-grid three-col" style={{ marginBottom: '1.5rem' }}>
             <div>
-              <label className="form-label">
-                Select Salesman:
+              <label style={filterLabelStyle}>
+                Select Salesman
               </label>
               <select
                 value={selectedSalesman}
@@ -109,8 +98,8 @@ const DirectorForecasts = () => {
             </div>
 
             <div>
-              <label className="form-label">
-                Select Month:
+              <label style={filterLabelStyle}>
+                Select Month
               </label>
               <select
                 value={selectedMonth}
@@ -127,8 +116,8 @@ const DirectorForecasts = () => {
             </div>
 
             <div>
-              <label className="form-label">
-                Select Year:
+              <label style={filterLabelStyle}>
+                Select Year
               </label>
               <select
                 value={selectedYear}
@@ -150,7 +139,7 @@ const DirectorForecasts = () => {
             </div>
           ) : (
             <div>
-              <div style={{ marginBottom: '1.5rem', padding: '1rem', backgroundColor: 'var(--brand-bg-soft)', borderRadius: '8px' }}>
+              <div style={{ marginBottom: '1.5rem', padding: '1rem', backgroundColor: 'var(--brand-surface-alt)', borderRadius: '12px' }}>
                 <h2 style={{ margin: '0 0 0.5rem 0', fontSize: '1.2rem' }}>
                   {getSelectedSalesmanName()} - {selectedYear} Forecasts
                 </h2>
@@ -177,9 +166,9 @@ const DirectorForecasts = () => {
                         className="forecast-card"
                         style={{
                           border: '1px solid var(--brand-border)',
-                          borderRadius: '8px',
+                          borderRadius: '14px',
                           padding: '1rem',
-                          backgroundColor: forecast ? 'white' : 'var(--brand-bg-light)',
+                          backgroundColor: forecast ? 'var(--brand-surface)' : 'var(--brand-surface-alt)',
                           opacity: forecast ? 1 : 0.6
                         }}
                       >
@@ -200,7 +189,7 @@ const DirectorForecasts = () => {
                                       key={index}
                                       style={{
                                         padding: '0.5rem',
-                                        backgroundColor: 'var(--brand-bg-light)',
+                                        backgroundColor: 'var(--brand-surface-alt)',
                                         borderRadius: '4px',
                                         fontSize: '0.8rem'
                                       }}
@@ -249,8 +238,6 @@ const DirectorForecasts = () => {
               )}
             </div>
           )}
-        </div>
-      </main>
     </div>
   );
 };

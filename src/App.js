@@ -4,20 +4,15 @@ import { auth } from './Auth/AuthConfig';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Landing from './Landing/Landing';
 import ChangePasswordPage from './Auth/ChangePasswordPage';
-import OrderForm from './Home/OrderForm';
-import Orders from './Home/Orders';
+import AdminLayout from './components/AdminLayout';
 import HomePage from './Home/HomePage';
 import Dashboard from './Home/Dashboard';
 import AdminDiscountApprovals from './Home/AdminDiscountApprovals';
 import AdminOrders from './Home/AdminOrders';
 import AdminManagement from './Home/AdminManagement';
-import ForecastForm from './Home/ForecastForm';
-import ForecastView from './Home/ForecastView';
 import DirectorForecasts from './Home/DirectorForecasts';
 import axios from 'axios';
 import { SERVER_API_URL, API_BASE_URL } from './Auth/APIConfig';
-import SalesManager from './Home/SalesManager';
-import MySales from './Home/MySales';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -92,15 +87,6 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  const handleSignOut = () => {
-    setUser(null);
-  };
-
-  const ProtectedRoute = ({ user, children }) => {
-    if (!user) return <Navigate to="/login" replace />;
-    return children;
-  };
-
   const AdminProtectedRoute = ({ user, children }) => {
     const [userRole, setUserRole] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -155,14 +141,12 @@ function App() {
     }
     
     if (!userRole?.hasAdminAccess) {
-      const isSalesManager = userRole?.role === 'sales_manager';
-      
       return (
-        <div style={{ 
-          display: 'flex', 
+        <div style={{
+          display: 'flex',
           flexDirection: 'column',
-          justifyContent: 'center', 
-          alignItems: 'center', 
+          justifyContent: 'center',
+          alignItems: 'center',
           minHeight: '100vh',
           backgroundColor: 'var(--brand-bg)',
           color: 'var(--brand-text)',
@@ -170,39 +154,24 @@ function App() {
           padding: '20px'
         }}>
           <h2 style={{ color: 'var(--color-error)', marginBottom: '20px' }}>Access Denied</h2>
-          <p style={{ marginBottom: '30px', fontSize: '1.1rem' }}>
-            This admin area is restricted to Directors and Admins only.
+          <p style={{ marginBottom: '30px', fontSize: '1.1rem', maxWidth: 420 }}>
+            This web dashboard is restricted to Directors and Admins. Salesman and Sales Manager
+            features are available on the NexGrow mobile app.
           </p>
 
-          {isSalesManager && (
-            <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: 'var(--brand-surface-alt)', borderRadius: '5px', color: 'var(--brand-green-dark)', border: '1px solid var(--brand-border)' }}>
-              <p style={{ margin: '0 0 10px 0', fontWeight: 'bold' }}>Sales Manager Access</p>
-              <p style={{ margin: 0, fontSize: '0.9rem' }}>
-                As a Sales Manager, use your dedicated manager dashboard to view and manage team orders.
-              </p>
-            </div>
-          )}
-
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
-            {isSalesManager && (
-              <button
-                onClick={() => window.location.href = '/manager'}
-                className="btn"
-              >
-                Manager Dashboard
-              </button>
-            )}
-            <button
-              onClick={() => window.location.href = '/home'}
-              className="btn secondary"
-            >
-              Go to Home
-            </button>
-          </div>
+          <button
+            onClick={async () => {
+              try { await signOut(auth); } catch {}
+              window.location.href = '/login';
+            }}
+            className="btn secondary"
+          >
+            Sign Out
+          </button>
         </div>
       );
     }
-    
+
     return children;
   };
 
@@ -258,18 +227,14 @@ function App() {
               : <Navigate to="/login" replace />
           }
         />
-        <Route path="/home" element={<ProtectedRoute user={user}><HomePage /></ProtectedRoute>} />
-        <Route path="/order-form" element={<ProtectedRoute user={user}><OrderForm onSignOut={handleSignOut} /></ProtectedRoute>} />
-        <Route path="/orders" element={<ProtectedRoute user={user}><Orders /></ProtectedRoute>} />
-        <Route path="/dashboard" element={<AdminProtectedRoute user={user}><Dashboard /></AdminProtectedRoute>} />
-        <Route path="/my-sales" element={<ProtectedRoute user={user}><MySales /></ProtectedRoute>} />
-        <Route path="/manager" element={<ProtectedRoute user={user}><SalesManager /></ProtectedRoute>} />
-        <Route path="/forecast" element={<ProtectedRoute user={user}><ForecastForm /></ProtectedRoute>} />
-        <Route path="/forecast-view" element={<ProtectedRoute user={user}><ForecastView /></ProtectedRoute>} />
-        <Route path="/admin/orders" element={<AdminProtectedRoute user={user}><AdminOrders /></AdminProtectedRoute>} />
-        <Route path="/admin/discount-approvals" element={<AdminProtectedRoute user={user}><AdminDiscountApprovals /></AdminProtectedRoute>} />
-        <Route path="/admin/management" element={<AdminProtectedRoute user={user}><AdminManagement /></AdminProtectedRoute>} />
-        <Route path="/admin/forecasts" element={<AdminProtectedRoute user={user}><DirectorForecasts /></AdminProtectedRoute>} />
+        <Route element={<AdminProtectedRoute user={user}><AdminLayout /></AdminProtectedRoute>}>
+          <Route path="/home" element={<HomePage />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/admin/orders" element={<AdminOrders />} />
+          <Route path="/admin/discount-approvals" element={<AdminDiscountApprovals />} />
+          <Route path="/admin/management" element={<AdminManagement />} />
+          <Route path="/admin/forecasts" element={<DirectorForecasts />} />
+        </Route>
       </Routes>
     </Router>
   );

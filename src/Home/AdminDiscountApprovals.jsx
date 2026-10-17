@@ -1,14 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import AppHeader from '../components/AppHeader';
-import { useNavigate } from 'react-router-dom';
 import { SERVER_API_URL } from '../Auth/APIConfig';
 import { formatINR, formatPercent, formatOrderDisplayId, computeDisplaySeqMap, calculateGST } from './numberFormat';
 import '../components/UITheme.css';
 
 
 const AdminDiscountApprovals = () => {
-  const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [salesmanMap, setSalesmanMap] = useState({});
@@ -116,19 +113,15 @@ const AdminDiscountApprovals = () => {
   };
 
   if (loading) {
-    return <div className="app-shell"> <main className="page fade-in"> <div className="surface-card elevated"> <p>Loading...</p> </div> </main> </div>;
+    return <div className="surface-card elevated"> <p>Loading...</p> </div>;
   }
 
   return (
-    <div className="app-shell">
-      <AppHeader />
-      <main className="page fade-in">
-        <div className="surface-card elevated">
-          <div className="mobile-stack" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem'}}>
-            <h1 className="section-title mobile-center" style={{margin: 0, fontSize: 'clamp(1.2rem, 4vw, 1.5rem)'}}>Pending Approvals</h1>
-            <button className="btn secondary mobile-full-width" onClick={() => navigate('/home')}>Back to Home</button>
-          </div>
-          {loading ? <p>Loading approvals...</p> : orders.length===0 ? <p>No pending discount approvals.</p> : (
+    <div className="surface-card elevated">
+          <p style={{margin: '0 0 1.5rem', fontSize: '13.5px', color: 'var(--brand-text-soft)'}}>{orders.length} orders awaiting a discount decision.</p>
+          {loading ? <p>Loading approvals...</p> : orders.length===0 ? (
+            <div style={{background:'var(--brand-surface-alt)', border:'1px dashed var(--brand-border)', borderRadius: 16, padding: 40, textAlign:'center', color:'var(--brand-text-soft)', fontSize:'13.5px'}}>All caught up — no pending discount approvals.</div>
+          ) : (
             <div className="order-list">
               {(() => { const seqMap = computeDisplaySeqMap(orders); return orders.map(order => {
                 // ... (rest of the mapping logic is complex and preserved)
@@ -318,8 +311,6 @@ const AdminDiscountApprovals = () => {
               }); })()}
             </div>
           )}
-        </div>
-      </main>
     </div>
   );
 };

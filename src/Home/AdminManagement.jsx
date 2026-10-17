@@ -1,13 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { SERVER_API_URL } from '../Auth/APIConfig';
 import { formatINR } from './numberFormat';
-import AppHeader from '../components/AppHeader';
 import StateDropdown from '../components/StateDropdown';
 import { INDIAN_STATES } from '../constants/indianStates';
 
 const AdminManagement = () => {
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('salesmen');
   const [salesmen, setSalesmen] = useState([]);
   const [dealers, setDealers] = useState([]);
@@ -1289,10 +1286,8 @@ const AdminManagement = () => {
   };
 
   const styles = {
-    container: { display:'flex', flexDirection:'column', minHeight:'100vh', background:'var(--brand-bg)', color:'var(--brand-text)', width:'100%', maxWidth:'100%', overflowX:'auto', paddingRight: window.innerWidth <= 768 ? '0' : '2rem' },
-    header: { textAlign:'center', marginBottom:'0', backgroundColor:'var(--brand-surface)', paddingTop:'1rem', paddingBottom:'.5rem', width:'100%', maxWidth:'100%' },
-    title: { fontSize:'clamp(1.2rem, 4vw, 1.55rem)', fontWeight:700, letterSpacing:'.3px', margin:0, background:'linear-gradient(90deg,#128d3b,#2fbf62)', WebkitBackgroundClip:'text', color:'transparent' },
-    tabs: { display:'flex', justifyContent:'center', gap:'.5rem', marginBottom:'1rem', flexWrap:'wrap', position:'sticky', top:'0', zIndex:50, backgroundColor:'var(--brand-surface)', paddingTop:'.5rem', paddingBottom:'.75rem', borderBottom:'1px solid var(--brand-border)', width:'100%', maxWidth:'100%' },
+    container: { display:'flex', flexDirection:'column', width:'100%', maxWidth:'100%', overflowX:'auto', paddingRight: window.innerWidth <= 768 ? '0' : '2rem' },
+    tabs: { display:'flex', gap:'.5rem', marginBottom:'1rem', flexWrap:'wrap', position:'sticky', top:'0', zIndex:50, backgroundColor:'var(--brand-bg)', paddingTop:'.5rem', paddingBottom:'.75rem', borderBottom:'1px solid var(--brand-border)', width:'100%', maxWidth:'100%' },
     tab: { padding:'.5rem .8rem', background:'var(--brand-surface)', color:'var(--brand-green-dark)', border:'1px solid var(--brand-green)', borderRadius:'var(--radius-md)', cursor:'pointer', fontSize:'.7rem', fontWeight:500, letterSpacing:'.3px', transition:'var(--transition-base)' },
     activeTab: { background:'var(--brand-green)', color:'#fff', boxShadow:'var(--brand-shadow-sm)' },
     content: { background:'var(--brand-surface)', border:'1px solid var(--brand-border)', borderRadius:'var(--radius-lg)', padding:'1rem', maxWidth: window.innerWidth <= 768 ? '100%' : 'calc(100% - 2rem)', margin:'0 0 1rem 0', width: window.innerWidth <= 768 ? '100%' : 'calc(100% - 2rem)', boxShadow:'var(--brand-shadow-sm)', overflowX:'auto' },
@@ -1384,11 +1379,6 @@ const AdminManagement = () => {
 
   return (
     <div className="admin-management" style={styles.container}>
-      <AppHeader />
-      <div style={styles.header}>
-        <h1 className="mobile-center" style={{...styles.title, fontSize: 'clamp(1.3rem, 4vw, 1.55rem)'}}>Data Management</h1>
-      </div>
-
       <div className="nav-tabs" style={styles.tabs}>
         <button 
           style={{...styles.tab, ...(activeTab === 'salesmen' ? styles.activeTab : {})}}
