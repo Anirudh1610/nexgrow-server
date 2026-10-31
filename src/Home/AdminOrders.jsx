@@ -303,7 +303,7 @@ const AdminOrders = () => {
                       border: '1px solid var(--brand-border)',
                       borderRadius: '4px',
                       boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                      zIndex: 1000,
+                      zIndex: 40,
                       minWidth: '200px',
                       maxHeight: '300px',
                       overflow: 'auto'
@@ -415,15 +415,7 @@ const AdminOrders = () => {
                         {status.toUpperCase()}
                       </span>
                     </header>
-                    <div
-                      style={{
-                        fontSize: '.75rem',
-                        color: 'var(--brand-text-soft)',
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: '.85rem',
-                      }}
-                    >
+                    <div className="order-meta">
                       <span>
                         <strong style={{ color: 'var(--brand-text)' }}>
                           Salesman:
@@ -507,14 +499,14 @@ const AdminOrders = () => {
                       className="order-metrics"
                       style={{ marginTop: '.75rem' }}
                     >
-                      <span>Total: ₹{formatINR(total)}</span>
-                      <span>Discount %: {formatPercent(discountPct,{decimals:2})}</span>
-                      <span>Discount Amt: ₹{formatINR(discountAmt)}</span>
-                      <span>After Discount: ₹{formatINR(discounted)}</span>
+                      <span><span>Total:</span> <span>₹{formatINR(total)}</span></span>
+                      <span><span>Discount %:</span> <span>{formatPercent(discountPct,{decimals:2})}</span></span>
+                      <span><span>Discount Amt:</span> <span>₹{formatINR(discountAmt)}</span></span>
+                      <span><span>After Discount:</span> <span>₹{formatINR(discounted)}</span></span>
                       {gstTotal > 0 && (
                         <>
-                          <span>GST: ₹{formatINR(gstTotal)}</span>
-                          <span><strong>Grand Total: ₹{formatINR(grandTotal)}</strong></span>
+                          <span><span>GST:</span> <span>₹{formatINR(gstTotal)}</span></span>
+                          <span><strong>Grand Total:</strong> <strong>₹{formatINR(grandTotal)}</strong></span>
                         </>
                       )}
                     </div>

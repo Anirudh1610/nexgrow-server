@@ -430,7 +430,8 @@ select.input option {
 
 /* Animations */
 .fade-in {
-  animation: fadeIn .5s ease-out forwards;
+  /* No fill-mode "forwards": a retained transform would trap position:fixed modals inside this element */
+  animation: fadeIn .5s ease-out;
 }
 
 @keyframes fadeIn {
@@ -583,7 +584,6 @@ select.input option {
   
   .tile {
     padding: 1.25rem;
-    text-align: center;
   }
   
   .tile h3 {
@@ -629,21 +629,6 @@ select.input option {
   }
   
   /* Order cards */
-  .order-card {
-    padding: 1rem;
-  }
-  
-  .order-card header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
-  }
-  
-  .order-card .order-metrics {
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-  
   /* Navigation tabs */
   .nav-tabs {
     overflow-x: auto;
@@ -702,11 +687,13 @@ select.input option {
 
 @media (max-width: 640px) {
   /* Prevent horizontal scrolling globally */
+  /* clip, not hidden: hidden turns these into scroll containers, which stops sticky elements from sticking */
   body, html {
     overflow-x: hidden !important;
+    overflow-x: clip !important;
     width: 100% !important;
   }
-  
+
   * {
     max-width: 100vw !important;
     box-sizing: border-box !important;
@@ -716,6 +703,7 @@ select.input option {
   .page, .container, div:not(.admin-management):not(.tableContainer) {
     max-width: 100% !important;
     overflow-x: hidden !important;
+    overflow-x: clip !important;
   }
   
   /* ONLY admin management tables can scroll horizontally on mobile */
@@ -797,7 +785,7 @@ select.input option {
   
   .tile h3 {
     font-size: 1rem !important;
-    margin: 0 0 0.5rem !important;
+    margin: 0.75rem 0 0.5rem !important;
     word-wrap: break-word !important;
     overflow-wrap: break-word !important;
   }
@@ -1226,6 +1214,44 @@ select.input option {
 
 .order-card ul {
   margin: 0.5rem 0 0 1rem;
+}
+
+.order-card .order-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  font-size: 0.75rem;
+  color: var(--brand-text-soft);
+}
+
+/* Phones. Kept after the base order-card rules so it overrides them. */
+@media (max-width: 640px) {
+  .order-card {
+    padding: 1rem;
+  }
+
+  .order-card header {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .order-card .order-meta {
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .order-card .order-metrics {
+    flex-direction: column;
+    gap: 0.4rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--brand-border);
+  }
+
+  .order-card .order-metrics > span {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+  }
 }
 
 /* Badges */

@@ -2,16 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import axios from 'axios';
+import { BsDatabase, BsGraphUpArrow, BsPatchCheck, BsReceipt, BsSpeedometer2 } from 'react-icons/bs';
 import { auth } from '../Auth/AuthConfig';
 import { SERVER_API_URL } from '../Auth/APIConfig';
 import { formatINR } from './numberFormat';
 
 const TILE_DEFS = [
-  { key: 'admin/discount-approvals', title: 'Approvals', desc: 'Review, approve or reject requested order discounts.', color: '#f59e0b' },
-  { key: 'admin/orders', title: 'All Orders', desc: 'Monitor every order, its status and discount performance.', color: '#16a34a' },
-  { key: 'admin/management', title: 'Data Management', desc: 'Maintain salesmen, dealers and product catalog entries.', color: '#0ea5e9' },
-  { key: 'admin/forecasts', title: 'Sales Forecasts', desc: 'View sales forecasts and targets by salesman.', color: '#8b5cf6' },
-  { key: 'dashboard', title: 'Dashboard', desc: 'High level metrics & quick sales insights.', color: '#16a34a' },
+  { key: 'admin/discount-approvals', title: 'Approvals', desc: 'Review, approve or reject requested order discounts.', color: '#f59e0b', Icon: BsPatchCheck },
+  { key: 'admin/orders', title: 'All Orders', desc: 'Monitor every order, its status and discount performance.', color: '#16a34a', Icon: BsReceipt },
+  { key: 'admin/management', title: 'Data Management', desc: 'Maintain salesmen, dealers and product catalog entries.', color: '#0ea5e9', Icon: BsDatabase },
+  { key: 'admin/forecasts', title: 'Sales Forecasts', desc: 'View sales forecasts and targets by salesman.', color: '#8b5cf6', Icon: BsGraphUpArrow },
+  { key: 'dashboard', title: 'Dashboard', desc: 'High level metrics & quick sales insights.', color: '#16a34a', Icon: BsSpeedometer2 },
 ];
 
 const HomePage = () => {
@@ -68,7 +69,7 @@ const HomePage = () => {
         Here's what's happening across your dealer network today.
       </p>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 30 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 14, marginBottom: 30 }}>
         {homeStats.map((st) => (
           <div key={st.label} style={{ background: 'var(--brand-surface)', border: '1px solid var(--brand-border)', borderRadius: 16, padding: '18px 20px', boxShadow: 'var(--brand-shadow-sm)' }}>
             <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--brand-text-muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 8 }}>
@@ -85,7 +86,7 @@ const HomePage = () => {
         {TILE_DEFS.map((tile) => (
           <div key={tile.key} className="tile" onClick={() => navigate(`/${tile.key}`)}>
             <div style={{ width: 42, height: 42, borderRadius: 12, background: `${tile.color}1a`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ width: 14, height: 14, borderRadius: 5, background: tile.color, display: 'inline-block' }} />
+              <tile.Icon size={20} color={tile.color} aria-hidden="true" />
             </div>
             <h3 style={{ margin: '14px 0 6px' }}>{tile.title}</h3>
             <p>{tile.desc}</p>

@@ -77,7 +77,8 @@ const AdminLayout = () => {
     height: '100vh',
     zIndex: 60,
     transition: 'transform .25s ease',
-    boxShadow: isMobile ? '0 0 40px rgba(0,0,0,.35)' : 'none',
+    // Only while open: when closed, the shadow would show along the screen's left edge
+    boxShadow: isMobile && mobileNavOpen ? '0 0 40px rgba(0,0,0,.35)' : 'none',
     transform: isMobile ? (mobileNavOpen ? 'translateX(0)' : 'translateX(-100%)') : 'none',
   };
 
@@ -143,7 +144,8 @@ const AdminLayout = () => {
         <header style={{
           height: 64, flex: 'none', background: '#ffffff', borderBottom: '1px solid var(--brand-border)',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: isMobile ? '0 14px' : '0 28px', position: 'sticky', top: 0, zIndex: 5,
+          // Above page content (up to 50), below the mobile nav backdrop (55) and page modals (1000)
+          padding: isMobile ? '0 14px' : '0 28px', position: 'sticky', top: 0, zIndex: 54,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
             {isMobile && (

@@ -1,8 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { SERVER_API_URL } from '../Auth/APIConfig';
+import { authFetch } from '../Auth/apiAuth';
 import { formatINR } from './numberFormat';
 import StateDropdown from '../components/StateDropdown';
 import { INDIAN_STATES } from '../constants/indianStates';
+
+// Height of the sticky page header in AdminLayout
+const STICKY_HEADER_HEIGHT = '64px';
 
 const AdminManagement = () => {
   const [activeTab, setActiveTab] = useState('salesmen');
@@ -34,6 +38,26 @@ const AdminManagement = () => {
   // Search functionality
   const [searchQuery, setSearchQuery] = useState('');
   const pretty = (t) => (t || '').replace(/_/g, ' ').replace(/\b\w/g, m => m.toUpperCase());
+  const modalContentRef = useRef(null);
+  const tabsRef = useRef(null);
+
+  // Errors render at the top of the form, so bring them into view when the form is scrolled
+  useEffect(() => {
+    if (formError && modalContentRef.current) modalContentRef.current.scrollTop = 0;
+  }, [formError]);
+
+  // Keep sticky category bars directly below the tabs, which can wrap onto several rows.
+  // UITheme.css makes the tabs non-sticky on smaller screens, so they don't count there.
+  useEffect(() => {
+    const tabs = tabsRef.current;
+    if (!tabs || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(() => {
+      const height = getComputedStyle(tabs).position === 'sticky' ? tabs.offsetHeight : 0;
+      tabs.parentElement.style.setProperty('--mgmt-tabs-h', `${height}px`);
+    });
+    observer.observe(tabs);
+    return () => observer.disconnect();
+  }, []);
 
   // Reset filters and search when tab changes
   useEffect(() => { 
@@ -127,7 +151,7 @@ const AdminManagement = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${SERVER_API_URL}/orders/admin/${activeTab}`);
+      const response = await authFetch(`${SERVER_API_URL}/orders/admin/${activeTab}`);
       if (response.ok) {
         const data = await response.json();
         switch (activeTab) {
@@ -164,7 +188,7 @@ const AdminManagement = () => {
   useEffect(() => {
     const loadSalesmen = async () => {
       try {
-        const resp = await fetch(`${SERVER_API_URL}/orders/admin/salesmen`);
+        const resp = await authFetch(`${SERVER_API_URL}/orders/admin/salesmen`);
         if (resp.ok) {
           const data = await resp.json();
           setSalesmen(data);
@@ -174,6 +198,21 @@ const AdminManagement = () => {
     // Preload when viewing tabs that depend on salesmen or on initial mount
     if (activeTab === 'sales_managers' || activeTab === 'dealers') {
       loadSalesmen();
+    }
+  }, [activeTab]);
+
+  // The salesman form assigns a sales manager by state, so it needs the managers list
+  useEffect(() => {
+    const loadSalesManagers = async () => {
+      try {
+        const resp = await authFetch(`${SERVER_API_URL}/orders/admin/sales_managers`);
+        if (resp.ok) {
+          setSalesManagers(await resp.json());
+        }
+      } catch (e) { console.error('Error preloading sales managers:', e); }
+    };
+    if (activeTab === 'salesmen') {
+      loadSalesManagers();
     }
   }, [activeTab]);
 
@@ -211,7 +250,7 @@ const AdminManagement = () => {
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this item?')) {
       try {
-        const response = await fetch(`${SERVER_API_URL}/orders/admin/${activeTab}/${id}`, {
+        const response = await authFetch(`${SERVER_API_URL}/orders/admin/${activeTab}/${id}`, {
           method: 'DELETE'
         });
         if (response.ok) {
@@ -230,7 +269,7 @@ const AdminManagement = () => {
       // Build full payload (safer for backends expecting all fields)
       const { _id, id:rid, __v, ...rest } = item;
       const payload = { ...rest, active: next };
-      const response = await fetch(url, { method:'PUT', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
+      const response = await authFetch(url, { method:'PUT', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
       if (response.ok) {
         fetchData();
       } else {
@@ -346,7 +385,7 @@ const AdminManagement = () => {
           const updatedProduct = { ...productData, category: 'Liquids' };
           
           const url = `${SERVER_API_URL}/orders/admin/products/${product.id || product._id}`;
-          const response = await fetch(url, {
+          const response = await authFetch(url, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(updatedProduct)
@@ -410,7 +449,7 @@ const AdminManagement = () => {
             }
           });
           const url = `${SERVER_API_URL}/orders/admin/${activeTab}/${id}`;
-          const response = await fetch(url, { method:'PUT', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(putPayload) });
+          const response = await authFetch(url, { method:'PUT', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(putPayload) });
           if (response.ok) {
             setShowModal(false);
             fetchData();
@@ -461,7 +500,7 @@ const AdminManagement = () => {
           if (!Number.isNaN(num)) payload[k] = num;
         }
       });
-      const response = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const response = await authFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (response.ok) {
         setShowModal(false);
         fetchData();
@@ -546,7 +585,7 @@ const AdminManagement = () => {
             borderRadius: '4px', 
             marginBottom: '1rem',
             position: 'sticky',
-            top: '0',
+            top: `calc(${STICKY_HEADER_HEIGHT} + var(--mgmt-tabs-h, 56px))`,
             zIndex: 10,
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
           }}>
@@ -1083,7 +1122,8 @@ const AdminManagement = () => {
           if (activeTab === 'sales_managers' && field === 'name') {
             const selectedId = (() => {
               const match = managersFromSalesmen.find(s => (s.name || '') === (formData.name || ''));
-              return match ? String(match.id || match._id) : '';
+              if (match) return String(match.id || match._id);
+              return formData.name ? '__current__' : '';
             })();
             return (
               <div key={field} style={styles.formGroup}>
@@ -1106,6 +1146,7 @@ const AdminManagement = () => {
                   disabled={managersFromSalesmen.length === 0}
                 >
                   <option value="">Select Sales Manager</option>
+                  {selectedId === '__current__' && <option value="__current__">{formData.name} (not in list)</option>}
                   {managersFromSalesmen.map(s => (
                     <option key={s.id || s._id} value={s.id || s._id}>{s.name}</option>
                   ))}
@@ -1125,6 +1166,9 @@ const AdminManagement = () => {
                   required
                 >
                   <option value="">Select Salesman</option>
+                  {formData[field] && !salesmen.some(s => String(s.id || s._id) === String(formData[field])) && (
+                    <option value={formData[field]}>Unknown salesman (not in list)</option>
+                  )}
                   {salesmen.map(salesman => (
                     <option key={salesman.id || salesman._id} value={salesman.id || salesman._id}>
                       {salesman.name}
@@ -1163,6 +1207,9 @@ const AdminManagement = () => {
                   required
                 >
                   <option value="">Select Category</option>
+                  {formData[field] && !['Granules', 'Powders', 'Liquids'].includes(formData[field]) && (
+                    <option value={formData[field]}>{formData[field]} (not in list)</option>
+                  )}
                   <option value="Granules">Granules</option>
                   <option value="Powders">Powders</option>
                   <option value="Liquids">Liquids</option>
@@ -1250,6 +1297,7 @@ const AdminManagement = () => {
               </label>
               <input
                 type={fieldType}
+                step={fieldType === 'number' ? 'any' : undefined}
                 value={formData[field] || ''}
                 onChange={(e) => {
                   // Clear team when state changes
@@ -1286,11 +1334,12 @@ const AdminManagement = () => {
   };
 
   const styles = {
-    container: { display:'flex', flexDirection:'column', width:'100%', maxWidth:'100%', overflowX:'auto', paddingRight: window.innerWidth <= 768 ? '0' : '2rem' },
-    tabs: { display:'flex', gap:'.5rem', marginBottom:'1rem', flexWrap:'wrap', position:'sticky', top:'0', zIndex:50, backgroundColor:'var(--brand-bg)', paddingTop:'.5rem', paddingBottom:'.75rem', borderBottom:'1px solid var(--brand-border)', width:'100%', maxWidth:'100%' },
+    // No overflow on container/content: it would stop the tabs and category bars from sticking. Tables scroll in tableContainer.
+    container: { display:'flex', flexDirection:'column', width:'100%', maxWidth:'100%', paddingRight: window.innerWidth <= 768 ? '0' : '2rem' },
+    tabs: { display:'flex', gap:'.5rem', marginBottom:'1rem', flexWrap:'wrap', position:'sticky', top:STICKY_HEADER_HEIGHT, zIndex:50, backgroundColor:'var(--brand-bg)', paddingTop:'.5rem', paddingBottom:'.75rem', borderBottom:'1px solid var(--brand-border)', width:'100%', maxWidth:'100%' },
     tab: { padding:'.5rem .8rem', background:'var(--brand-surface)', color:'var(--brand-green-dark)', border:'1px solid var(--brand-green)', borderRadius:'var(--radius-md)', cursor:'pointer', fontSize:'.7rem', fontWeight:500, letterSpacing:'.3px', transition:'var(--transition-base)' },
     activeTab: { background:'var(--brand-green)', color:'#fff', boxShadow:'var(--brand-shadow-sm)' },
-    content: { background:'var(--brand-surface)', border:'1px solid var(--brand-border)', borderRadius:'var(--radius-lg)', padding:'1rem', maxWidth: window.innerWidth <= 768 ? '100%' : 'calc(100% - 2rem)', margin:'0 0 1rem 0', width: window.innerWidth <= 768 ? '100%' : 'calc(100% - 2rem)', boxShadow:'var(--brand-shadow-sm)', overflowX:'auto' },
+    content: { background:'var(--brand-surface)', border:'1px solid var(--brand-border)', borderRadius:'var(--radius-lg)', padding:'1rem', maxWidth: window.innerWidth <= 768 ? '100%' : 'calc(100% - 2rem)', margin:'0 0 1rem 0', width: window.innerWidth <= 768 ? '100%' : 'calc(100% - 2rem)', boxShadow:'var(--brand-shadow-sm)' },
     createButton: { background:'var(--brand-green)', color:'#fff', border:'1px solid var(--brand-green)', padding:'.4rem .6rem', borderRadius:'var(--radius-md)', fontSize:'.65rem', fontWeight:600, letterSpacing:'.3px', cursor:'pointer', boxShadow:'var(--brand-shadow-sm)', transition:'var(--transition-base)' },
     tableContainer: { overflowX:'auto', marginTop:'.5rem', width:'100%', maxWidth:'100%', border:'1px solid var(--brand-border)', borderRadius:'4px', padding:'.5rem', boxSizing:'border-box', WebkitOverflowScrolling:'touch', scrollBehavior:'smooth' },
     table: { 
@@ -1379,7 +1428,7 @@ const AdminManagement = () => {
 
   return (
     <div className="admin-management" style={styles.container}>
-      <div className="nav-tabs" style={styles.tabs}>
+      <div className="nav-tabs" ref={tabsRef} style={styles.tabs}>
         <button 
           style={{...styles.tab, ...(activeTab === 'salesmen' ? styles.activeTab : {})}}
           onClick={() => setActiveTab('salesmen')}
@@ -1461,7 +1510,7 @@ const AdminManagement = () => {
 
       {showModal && (
         <div style={styles.modal}>
-          <div style={styles.modalContent}>
+          <div ref={modalContentRef} style={styles.modalContent}>
             {(() => { const singular = { salesmen: 'Salesman', sales_managers:'Sales Manager', directors:'Director', dealers: 'Dealer', products: 'Product' }[activeTab] || activeTab; return (
               <h3>{modalType === 'create' ? 'Create' : 'Edit'} {singular}</h3>
             ); })()}

@@ -48,6 +48,9 @@ const StateDropdown = ({
         disabled={disabled}
       >
         <option value="">{placeholder}</option>
+        {value && value !== '__custom__' && !INDIAN_STATES.some(state => state.code === value) && (
+          <option value={value}>{value} (not in list)</option>
+        )}
         {INDIAN_STATES.map(state => (
           <option key={state.code} value={state.code}>
             {state.code} - {state.name}

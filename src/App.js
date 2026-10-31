@@ -13,6 +13,7 @@ import AdminManagement from './Home/AdminManagement';
 import DirectorForecasts from './Home/DirectorForecasts';
 import axios from 'axios';
 import { SERVER_API_URL, API_BASE_URL } from './Auth/APIConfig';
+import './Auth/apiAuth';
 
 function App() {
   const [user, setUser] = useState(null);
