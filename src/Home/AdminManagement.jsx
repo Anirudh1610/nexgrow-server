@@ -39,6 +39,16 @@ const AdminManagement = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const pretty = (t) => (t || '').replace(/_/g, ' ').replace(/\b\w/g, m => m.toUpperCase());
   const modalContentRef = useRef(null);
+  // Salesman whose dealers are shown in the dealers popup (null = closed)
+  const [dealersFor, setDealersFor] = useState(null);
+  const [dealerSearch, setDealerSearch] = useState('');
+  const [dealerSavingId, setDealerSavingId] = useState(null);
+  const [dealerError, setDealerError] = useState('');
+  // Bulk add: paste or upload a list of dealer names for the salesman in the popup
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkText, setBulkText] = useState('');
+  const [bulkRunning, setBulkRunning] = useState(false);
+  const [bulkResult, setBulkResult] = useState(null);
   const tabsRef = useRef(null);
 
   // Errors render at the top of the form, so bring them into view when the form is scrolled
@@ -215,6 +225,58 @@ const AdminManagement = () => {
       loadSalesManagers();
     }
   }, [activeTab]);
+
+  const loadDealers = useCallback(async () => {
+    try {
+      const resp = await authFetch(`${SERVER_API_URL}/orders/admin/dealers`);
+      if (resp.ok) {
+        setDealers(await resp.json());
+      }
+    } catch (e) { console.error('Error loading dealers:', e); }
+  }, []);
+
+  // The salesmen tab's dealers column needs the dealers list
+  useEffect(() => {
+    if (activeTab === 'salesmen') {
+      loadDealers();
+    }
+    setDealersFor(null);
+  }, [activeTab, loadDealers]);
+
+  const openDealersFor = (salesman) => {
+    setDealerSearch('');
+    setDealerError('');
+    setBulkOpen(false);
+    setBulkText('');
+    setBulkResult(null);
+    setDealersFor(salesman);
+  };
+
+  // Assign a dealer to a salesman, or unassign it with salesmanId = null
+  const assignDealer = async (dealer, salesmanId) => {
+    const id = dealer.id || dealer._id;
+    setDealerSavingId(id);
+    setDealerError('');
+    try {
+      const resp = await authFetch(`${SERVER_API_URL}/orders/admin/dealers/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sales_man_id: salesmanId }),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      await loadDealers();
+      setDealerSearch('');
+    } catch (e) {
+      console.error('Error updating dealer assignment:', e);
+      setDealerError(`Could not update ${dealer.name}. Please try again.`);
+    }
+    setDealerSavingId(null);
+  };
+
+  const dealersOfSalesman = (salesman) => {
+    const sid = String(salesman.id || salesman._id);
+    return (dealers || []).filter(d => String(d.sales_man_id) === sid);
+  };
 
   const handleCreate = () => {
     setModalType('create');
@@ -774,6 +836,7 @@ const AdminManagement = () => {
                   </th>
                 );
               })}
+              {activeTab === 'salesmen' && <th style={styles.th}>Dealers</th>}
               <th style={styles.th}>Actions</th>
             </tr>
           </thead>
@@ -805,7 +868,17 @@ const AdminManagement = () => {
                   }
                   return <td key={c.field} style={styles.td}>{display ?? 'N/A'}</td>;
                 })}
-                <td style={styles.td}>
+                {activeTab === 'salesmen' && (() => {
+                  const count = dealersOfSalesman(item).filter(d => d.active !== false).length;
+                  return (
+                    <td style={styles.td}>
+                      <button type="button" style={count > 0 ? styles.dealersLink : styles.dealersLinkEmpty} onClick={() => openDealersFor(item)} title="View and manage dealers">
+                        {count > 0 ? `${count} ${count === 1 ? 'dealer' : 'dealers'} ›` : '+ Add dealers'}
+                      </button>
+                    </td>
+                  );
+                })()}
+                <td style={{ ...styles.td, whiteSpace:'nowrap' }}>
                   <button style={styles.editButton} onClick={() => handleEdit(item)}>Edit</button>
                   <button style={styles.deactivateButton} onClick={() => toggleActive(item, false)}>Deactivate</button>
                 </td>
@@ -813,6 +886,292 @@ const AdminManagement = () => {
             ))}
           </tbody>
         </table>
+      </div>
+    );
+  };
+
+  // Names are one per line; a single line is split on commas instead.
+  // Multi-line input keeps commas, since some dealer names contain them.
+  const parseDealerNames = (text) => {
+    const clean = (v) => v.trim().replace(/^["']|["']$/g, '').trim();
+    let parts = (text || '').split(/\r?\n/).map(line => clean(line.split('\t')[0])).filter(Boolean);
+    if (parts.length === 1) parts = parts[0].split(',').map(clean).filter(Boolean);
+    if (parts.length && /^(dealer\s*)?names?$|^dealers?$/i.test(parts[0])) parts = parts.slice(1);
+    const seen = new Set();
+    return parts.filter(n => {
+      const k = dealerKey(n);
+      if (!k || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  };
+  const dealerKey = (name) => (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  // What bulk add would do with each name for this salesman
+  const planBulkAdd = (salesman, names) => {
+    const sid = String(salesman.id || salesman._id);
+    const byKey = new Map();
+    (dealers || []).forEach(d => { const k = dealerKey(d.name); if (!byKey.has(k)) byKey.set(k, d); });
+    return names.map(name => {
+      const d = byKey.get(dealerKey(name));
+      if (!d) return { name, action: 'create' };
+      const inactive = d.active === false;
+      if (String(d.sales_man_id) === sid) return { name, dealer: d, action: inactive ? 'reactivate' : 'skip' };
+      return { name, dealer: d, action: 'move', from: d.sales_man_id ? String(d.sales_man_id) : null, inactive };
+    });
+  };
+
+  const handleBulkFile = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => { setBulkText(String(reader.result || '')); setBulkResult(null); };
+    reader.readAsText(file);
+  };
+
+  const runBulkAdd = async (salesman, plan) => {
+    const sid = String(salesman.id || salesman._id);
+    setBulkRunning(true);
+    setBulkResult(null);
+    const failed = [];
+    let created = 0, moved = 0, reactivated = 0;
+    for (const item of plan) {
+      if (item.action === 'skip') continue;
+      try {
+        let resp;
+        if (item.action === 'create') {
+          resp = await authFetch(`${SERVER_API_URL}/orders/admin/dealers`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: item.name, phone: '', state: salesman.state || '', sales_man_id: sid, credit_limit: 100000, active: true }),
+          });
+        } else {
+          const id = item.dealer.id || item.dealer._id;
+          resp = await authFetch(`${SERVER_API_URL}/orders/admin/dealers/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sales_man_id: sid, active: true }),
+          });
+        }
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        if (item.action === 'create') created++;
+        else if (item.action === 'move') moved++;
+        else reactivated++;
+      } catch (err) {
+        console.error('Bulk add failed for', item.name, err);
+        failed.push(item.name);
+      }
+    }
+    await loadDealers();
+    setBulkRunning(false);
+    setBulkResult({ created, moved, reactivated, failed });
+    if (failed.length === 0) setBulkText('');
+  };
+
+  const renderBulkAdd = (salesman) => {
+    const names = parseDealerNames(bulkText);
+    const plan = planBulkAdd(salesman, names);
+    const salesmanName = new Map((salesmen || []).map(sm => [String(sm.id || sm._id), sm.name]));
+    const count = (a) => plan.filter(p => p.action === a).length;
+    const toDo = plan.filter(p => p.action !== 'skip').length;
+    const label = {
+      create: () => 'New dealer',
+      move: (p) => `Move from ${p.from ? (salesmanName.get(p.from) || 'another salesman') : 'unassigned'}${p.inactive ? ', reactivate' : ''}`,
+      reactivate: () => 'Reactivate',
+      skip: () => 'Already assigned',
+    };
+    return (
+      <div style={styles.bulkBox}>
+        <div style={{ fontSize:'.7rem', color:'var(--brand-text-soft)', marginBottom:'.4rem' }}>
+          One dealer name per line, or all on one line separated by commas. Dealers that already exist are matched by name; new ones are created in {salesman.state || 'the salesman\'s state'}.
+        </div>
+        <textarea
+          value={bulkText}
+          onChange={e => { setBulkText(e.target.value); setBulkResult(null); }}
+          rows={5}
+          placeholder={'CVR Traders\nSri Vijay Rythu Depot\nRamesh Traders'}
+          style={{ ...styles.input, width:'100%', boxSizing:'border-box', fontFamily:'inherit', resize:'vertical' }}
+        />
+        <div style={{ display:'flex', alignItems:'center', gap:'.5rem', marginTop:'.5rem', flexWrap:'wrap' }}>
+          <label style={{ ...styles.dealersLink, display:'inline-block' }}>
+            Upload .txt / .csv
+            <input type="file" accept=".txt,.csv,text/plain,text/csv" onChange={handleBulkFile} style={{ display:'none' }} />
+          </label>
+          {names.length > 0 && (
+            <span style={{ fontSize:'.7rem', color:'var(--brand-text-soft)' }}>
+              {names.length} names: {count('create')} new, {count('move')} to move, {count('reactivate')} to reactivate, {count('skip')} already assigned
+            </span>
+          )}
+        </div>
+
+        {plan.length > 0 && (
+          <div style={{ ...styles.tableContainer, maxHeight:'220px', overflowY:'auto' }}>
+            <table style={styles.table}>
+              <tbody>
+                {plan.map(p => (
+                  <tr key={p.name} style={styles.tr}>
+                    <td style={styles.td}>{p.dealer ? p.dealer.name : p.name}</td>
+                    <td style={{ ...styles.td, color: p.action === 'skip' ? 'var(--brand-text-soft)' : p.action === 'move' ? '#b26a00' : 'var(--brand-green-dark)', fontWeight:600 }}>
+                      {label[p.action](p)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {bulkResult && (
+          <div style={{ ...(bulkResult.failed.length ? styles.errorText : styles.successText), marginTop:'.5rem' }}>
+            Done: {bulkResult.created} created, {bulkResult.moved} moved, {bulkResult.reactivated} reactivated.
+            {bulkResult.failed.length > 0 && ` Failed: ${bulkResult.failed.join(', ')}.`}
+          </div>
+        )}
+
+        <div style={{ ...styles.formActions, marginTop:'.6rem' }}>
+          <button type="button" style={styles.cancelButton} onClick={() => { setBulkOpen(false); setBulkText(''); setBulkResult(null); }}>Cancel</button>
+          <button
+            type="button"
+            style={{ ...styles.submitButton, ...(toDo === 0 || bulkRunning ? { opacity:.5, cursor:'not-allowed' } : {}) }}
+            disabled={toDo === 0 || bulkRunning}
+            onClick={() => {
+              const moves = plan.filter(p => p.action === 'move' && p.from);
+              if (moves.length && !window.confirm(`${moves.length} of these dealers are currently under other salesmen and will be moved to ${salesman.name}. Continue?`)) return;
+              runBulkAdd(salesman, plan);
+            }}
+          >
+            {bulkRunning ? 'Saving…' : `Add ${toDo} dealer${toDo === 1 ? '' : 's'}`}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderDealersModal = () => {
+    if (!dealersFor) return null;
+    const sid = String(dealersFor.id || dealersFor._id);
+    const salesmanName = new Map((salesmen || []).map(sm => [String(sm.id || sm._id), sm.name]));
+    const list = dealersOfSalesman(dealersFor)
+      .slice()
+      .sort((a, b) => (a.active === false) - (b.active === false) || (a.name || '').localeCompare(b.name || ''));
+    const activeCount = list.filter(d => d.active !== false).length;
+
+    // Candidates to add: active dealers not already under this salesman, matching the search.
+    // Unassigned dealers and dealers in the salesman's state come first.
+    const q = dealerSearch.trim().toLowerCase();
+    const sameState = (d) => normalize(d.state) === normalize(dealersFor.state);
+    const candidates = !q ? [] : (dealers || [])
+      .filter(d => d.active !== false && String(d.sales_man_id) !== sid)
+      .filter(d => (d.name || '').toLowerCase().includes(q) || (d.phone || '').includes(q) || (d.state || '').toLowerCase().includes(q))
+      .sort((a, b) => (!!a.sales_man_id - !!b.sales_man_id) || (sameState(b) - sameState(a)) || (a.name || '').localeCompare(b.name || ''))
+      .slice(0, 8);
+
+    const handleAdd = (d) => {
+      const current = d.sales_man_id ? salesmanName.get(String(d.sales_man_id)) : null;
+      if (current && !window.confirm(`${d.name} is currently under ${current}. Move it to ${dealersFor.name}?`)) return;
+      assignDealer(d, sid);
+    };
+    const handleRemove = (d) => assignDealer(d, null);
+
+    return (
+      <div style={styles.modal} onClick={() => setDealersFor(null)}>
+        <div style={{ ...styles.modalContent, maxWidth:'680px' }} onClick={e => e.stopPropagation()}>
+          <h3 style={{ margin:0 }}>Dealers under {dealersFor.name}</h3>
+          <div style={{ fontSize:'.7rem', color:'var(--brand-text-soft)', margin:'.35rem 0 .75rem' }}>
+            {activeCount} active{list.length > activeCount ? `, ${list.length - activeCount} inactive` : ''}
+          </div>
+
+          <div style={{ position:'relative', marginBottom:'.75rem' }}>
+            <input
+              type="text"
+              value={dealerSearch}
+              onChange={e => setDealerSearch(e.target.value)}
+              onPaste={e => {
+                // A pasted list (several lines, e.g. copied from a spreadsheet) goes to bulk add
+                const text = e.clipboardData.getData('text');
+                if (/\r?\n/.test(text.trim())) {
+                  e.preventDefault();
+                  setDealerSearch('');
+                  setBulkText(text);
+                  setBulkResult(null);
+                  setBulkOpen(true);
+                }
+              }}
+              placeholder="Add a dealer: search by name, phone or state"
+              style={{ ...styles.input, width:'100%', boxSizing:'border-box' }}
+            />
+            {q && (
+              <div style={styles.dealerResults}>
+                {candidates.length === 0 && <div style={{ ...styles.noValues, fontSize:'.7rem' }}>No matching dealers.</div>}
+                {candidates.map(d => {
+                  const id = d.id || d._id;
+                  const current = d.sales_man_id ? salesmanName.get(String(d.sales_man_id)) || 'another salesman' : null;
+                  return (
+                    <div key={id} style={styles.dealerResultRow}>
+                      <div style={{ minWidth:0 }}>
+                        <div style={{ fontWeight:600, fontSize:'.75rem' }}>{d.name}</div>
+                        <div style={{ fontSize:'.65rem', color:'var(--brand-text-soft)' }}>
+                          {d.state || 'No state'} · {current ? `Under ${current}` : 'Unassigned'}
+                        </div>
+                      </div>
+                      <button type="button" style={{ ...styles.smallBtn, fontSize:'.7rem', padding:'.35rem .7rem', whiteSpace:'nowrap' }} disabled={dealerSavingId === id} onClick={() => handleAdd(d)}>
+                        {dealerSavingId === id ? 'Adding…' : current ? 'Move here' : 'Add'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {bulkOpen ? renderBulkAdd(dealersFor) : (
+            <button type="button" style={{ ...styles.dealersLink, marginBottom:'.75rem' }} onClick={() => { setBulkOpen(true); setBulkResult(null); }}>
+              Bulk add from a list…
+            </button>
+          )}
+
+          {dealerError && <div style={{ ...styles.errorText, marginBottom:'.75rem' }}>{dealerError}</div>}
+
+          {list.length === 0 ? (
+            <div style={{ padding:'1rem 0', color:'var(--brand-text-soft)' }}>No dealers assigned to this salesman.</div>
+          ) : (
+            <div style={styles.tableContainer}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>Name</th>
+                    <th style={styles.th}>Phone</th>
+                    <th style={styles.th}>State</th>
+                    <th style={styles.th}>Credit Limit</th>
+                    <th style={styles.th}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.map(d => {
+                    const id = d.id || d._id;
+                    return (
+                      <tr key={id} style={{ ...styles.tr, ...(d.active === false ? { opacity:.55 } : {}) }}>
+                        <td style={styles.td}>{d.name}{d.active === false ? ' (inactive)' : ''}</td>
+                        <td style={styles.td}>{d.phone || 'N/A'}</td>
+                        <td style={styles.td}>{d.state || 'N/A'}</td>
+                        <td style={styles.td}>₹{formatINR(d.credit_limit, { decimals: 0 })}</td>
+                        <td style={{ ...styles.td, textAlign:'right' }}>
+                          <button type="button" style={styles.removeLink} disabled={dealerSavingId === id} onClick={() => handleRemove(d)}>
+                            {dealerSavingId === id ? 'Removing…' : 'Remove'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div style={styles.formActions}>
+            <button type="button" onClick={() => setDealersFor(null)} style={styles.cancelButton}>Close</button>
+          </div>
+        </div>
       </div>
     );
   };
@@ -1373,6 +1732,13 @@ const AdminManagement = () => {
       overflow:'hidden', 
       textOverflow:'ellipsis' 
     },
+    bulkBox: { border:'1px solid var(--brand-border)', borderRadius:'var(--radius-md)', padding:'.75rem', marginBottom:'.75rem', background:'var(--brand-surface-alt)' },
+    successText: { color:'var(--brand-green-dark)', background:'var(--brand-surface)', border:'1px solid var(--brand-green)', padding:'.5rem .65rem', borderRadius:'6px', fontSize:'.72rem' },
+    dealersLinkEmpty: { background:'transparent', color:'var(--brand-text-soft)', border:'1px dashed var(--brand-border)', borderRadius:'999px', padding:'.2rem .6rem', cursor:'pointer', fontSize:'.7rem', fontWeight:500, whiteSpace:'nowrap' },
+    removeLink: { background:'transparent', color:'var(--color-error)', border:'none', padding:'.25rem .4rem', cursor:'pointer', fontSize:'.7rem', fontWeight:600 },
+    dealerResults: { position:'absolute', top:'100%', left:0, right:0, zIndex:60, marginTop:'.3rem', background:'var(--modal-bg)', border:'1px solid var(--brand-border)', borderRadius:'6px', boxShadow:'0 8px 20px rgba(0,0,0,0.12)', padding:'.35rem', maxHeight:'260px', overflowY:'auto' },
+    dealerResultRow: { display:'flex', alignItems:'center', justifyContent:'space-between', gap:'.75rem', padding:'.4rem .45rem', borderBottom:'1px solid var(--brand-border)' },
+    dealersLink: { background:'var(--brand-surface-alt)', color:'var(--brand-green-dark)', border:'1px solid var(--brand-border)', borderRadius:'999px', padding:'.2rem .6rem', cursor:'pointer', fontSize:'.7rem', fontWeight:600, whiteSpace:'nowrap' },
     editButton: { background:'var(--brand-green)', color:'#fff', border:'none', padding:'.5rem .75rem', borderRadius:'var(--radius-sm)', cursor:'pointer', fontSize:'.75rem', fontWeight:600, marginRight:'.25rem', minHeight:'36px' },
     deactivateButton: { background:'#ff9800', color:'#fff', border:'none', padding:'.5rem .75rem', borderRadius:'var(--radius-sm)', cursor:'pointer', fontSize:'.75rem', fontWeight:600, minHeight:'36px' },
     activateButton: { background:'#17a2b8', color:'#fff', border:'none', padding:'.5rem .75rem', borderRadius:'var(--radius-sm)', cursor:'pointer', fontSize:'.75rem', fontWeight:600, minHeight:'36px' },
@@ -1518,6 +1884,7 @@ const AdminManagement = () => {
           </div>
         </div>
       )}
+      {renderDealersModal()}
     </div>
   );
 };
