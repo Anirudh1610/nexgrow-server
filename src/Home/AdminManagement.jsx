@@ -588,6 +588,75 @@ const AdminManagement = () => {
     }
   };
 
+  const [exporting, setExporting] = useState(false);
+
+  // Download every product (active and inactive) as an Excel file
+  const exportProductsToExcel = async () => {
+    setExporting(true);
+    try {
+      const { default: ExcelJS } = await import('exceljs');
+      // Older products use *_per_bottle fields; newer ones may only have the *_unit / quantity_per_case fields
+      const pick = (...vals) => vals.find(v => v !== undefined && v !== null && v !== '');
+      const num = (v) => (v === undefined || v === null || v === '' || Number.isNaN(Number(v)) ? v ?? '' : Number(v));
+      const rows = (products || [])
+        .slice()
+        .sort((a, b) => (a.category || '').localeCompare(b.category || '') || (a.name || '').localeCompare(b.name || ''))
+        .map(p => ({
+          name: p.name || '',
+          category: p.category || '',
+          packing_size: p.packing_size || '',
+          per_case: num(pick(p.bottles_per_case, p.quantity_per_case)),
+          bottle_volume: p.bottle_volume || '',
+          moq: p.moq || '',
+          dealer_price: num(p.dealer_price_per_bottle),
+          gst: num(p.gst_percentage),
+          billing_price: num(pick(p.billing_price_per_bottle, p.billing_price__unit)),
+          mrp: num(pick(p.mrp_per_bottle || undefined, p.mrp_per_unit)),
+          details: p.product_details || '',
+          status: p.active === false ? 'Inactive' : 'Active',
+        }));
+
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('Products', { views: [{ state: 'frozen', ySplit: 1 }] });
+      const money = '₹#,##,##0.00';
+      ws.columns = [
+        { header: 'Name', key: 'name', width: 40 },
+        { header: 'Category', key: 'category', width: 18 },
+        { header: 'Packing Size', key: 'packing_size', width: 16 },
+        { header: 'Units per Case', key: 'per_case', width: 14 },
+        { header: 'Unit Volume', key: 'bottle_volume', width: 14 },
+        { header: 'MOQ', key: 'moq', width: 16 },
+        { header: 'Dealer Price', key: 'dealer_price', width: 14, style: { numFmt: money } },
+        { header: 'GST %', key: 'gst', width: 8 },
+        { header: 'Billing Price', key: 'billing_price', width: 14, style: { numFmt: money } },
+        { header: 'MRP', key: 'mrp', width: 14, style: { numFmt: money } },
+        { header: 'Details', key: 'details', width: 50 },
+        { header: 'Status', key: 'status', width: 10 },
+      ];
+      ws.addRows(rows);
+      const header = ws.getRow(1);
+      header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF128D3B' } };
+      header.alignment = { vertical: 'middle' };
+      ws.autoFilter = { from: 'A1', to: 'L1' };
+
+      const buf = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `NexGrow-Products-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      console.error('Error exporting products:', e);
+      alert('Could not create the Excel file. Please try again.');
+    }
+    setExporting(false);
+  };
+
   const renderProductsByCategory = () => {
     const activeProducts = products.filter(product => product.active !== false);
     
@@ -1862,6 +1931,17 @@ const AdminManagement = () => {
           >
             Sort {sortAsc ? 'A-Z' : 'Z-A'}
           </button>
+          {activeTab === 'products' && (
+            <button
+              className="btn secondary"
+              style={{ ...styles.sortButton, ...(exporting || products.length === 0 ? { opacity:.6, cursor:'not-allowed' } : {}) }}
+              onClick={exportProductsToExcel}
+              disabled={exporting || products.length === 0}
+              title="Download all products as an Excel file"
+            >
+              {exporting ? 'Preparing…' : 'Download Excel'}
+            </button>
+          )}
         </div>
         
         {loading ? (
